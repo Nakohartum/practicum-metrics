@@ -52,5 +52,5 @@ func (ms *MemStorage) SetData(metricType, key, value string) error{
 		return nil
 	}
 
-	return errors.New("No metric found")
+	return errors.New("no metric found")
 }

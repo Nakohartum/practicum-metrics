@@ -20,13 +20,13 @@ func NewMetricsService(r repository.MemRepo) *MetricsService {
 func (s *MetricsService) GetData(path string) (string, error) {
 	parts := strings.Split(path, "/")
 	if len(parts) < 2 || parts[1] == "" {
-		return "", errors.New("No metric's name")
+		return "", errors.New("no metric's name")
 	}
 
 	if res, exists := s.repo.GetData(parts[0], parts[1]); exists {
 		return res, nil
 	}
-	return "", errors.New("No metric found")
+	return "", errors.New("no metric found")
 }
 
 func (s *MetricsService) SetData(metricType, metricKey, metricValue string) error {
