@@ -1,21 +1,21 @@
 package repository
 
-import (
-	"github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
-)
-
-
-type MemRepo struct {
-	storage *config.MemStorage
+type Storage interface{
+	GetData(string, string) (string, error)
+	SetData(string, string, string) error
 }
 
-func NewMemRepo(config config.MemStorage) *MemRepo {
+type MemRepo struct {
+	storage Storage
+}
+
+func NewMemRepo(config Storage) *MemRepo {
 	return &MemRepo{
-		storage: &config,
+		storage: config,
 	}
 }
 
-func (mr *MemRepo) GetData(metricType, key string) (string, bool){
+func (mr *MemRepo) GetData(metricType, key string) (string, error){
 	return mr.storage.GetData(metricType, key)
 }
 

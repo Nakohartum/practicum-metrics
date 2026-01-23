@@ -8,10 +8,10 @@ import (
 )
 
 type MetricsService struct {
-	repo repository.MemRepo
+	repo *repository.MemRepo
 }
 
-func NewMetricsService(r repository.MemRepo) *MetricsService {
+func NewMetricsService(r *repository.MemRepo) *MetricsService {
 	return &MetricsService{
 		repo: r,
 	}
@@ -23,10 +23,12 @@ func (s *MetricsService) GetData(path string) (string, error) {
 		return "", errors.New("no metric's name")
 	}
 
-	if res, exists := s.repo.GetData(parts[0], parts[1]); exists {
+	if res, err := s.repo.GetData(parts[0], parts[1]); err == nil {
 		return res, nil
+	} else{
+		return "", err
 	}
-	return "", errors.New("no metric found")
+	
 }
 
 func (s *MetricsService) SetData(metricType, metricKey, metricValue string) error {

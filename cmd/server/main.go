@@ -14,9 +14,9 @@ func main() {
 
 	mux := http.NewServeMux()
 	model := models.NewStorageModel()
-	conf := config.NewMemStorage(*model)
-	repo := repository.NewMemRepo(*conf)
-	metricsService := service.NewMetricsService(*repo)
+	conf := config.NewMemStorage(model)
+	repo := repository.NewMemRepo(conf)
+	metricsService := service.NewMetricsService(repo)
 	metricsHandler := handler.NewMetricsHandler(metricsService)
 	mux.Handle("/update/", metricsHandler)
 

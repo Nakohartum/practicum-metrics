@@ -7,29 +7,33 @@ import (
 	"github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
+var (
+	ErrNotExists = errors.New("Item does not exist")
+)
+
 type MemStorage struct {
 	data *models.StorageModel
 }
 
-func NewMemStorage(model models.StorageModel) *MemStorage {
+func NewMemStorage(model *models.StorageModel) *MemStorage {
 	return &MemStorage{
-		data: &model,
+		data: model,
 	}
 }
 
 
-func (ms *MemStorage) GetData(metricType, key string) (string, bool){
+func (ms *MemStorage) GetData(metricType, key string) (string, error){
 	switch metricType{
 	case models.Counter:
 		if val, exists := ms.data.Counters[key]; exists{
-			return strconv.FormatInt(val, 10), true
+			return strconv.FormatInt(val, 10), nil
 		}
 	case models.Gauge:
 		if val, exists := ms.data.Gauges[key]; exists{
-			return strconv.FormatFloat(val, 'f', 5, 64), true
+			return strconv.FormatFloat(val, 'f', 5, 64), nil
 		}
 	}
-	return "", false
+	return "", ErrNotExists
 }
 
 
