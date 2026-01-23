@@ -64,6 +64,8 @@ func TestServeHTTP(t *testing.T) {
 
 			res := w.Result()
 
+			res.Body.Close()
+
 			assert.Equal(t, tt.statusCode, res.StatusCode)
 		})
 	}

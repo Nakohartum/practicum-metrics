@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	ErrNotExists = errors.New("Item does not exist")
+	ErrNotExists = errors.New("item does not exist")
 )
 
 type MemStorage struct {
