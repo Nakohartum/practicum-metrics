@@ -30,7 +30,7 @@ func (ms *MemStorage) GetData(metricType, key string) (string, error){
 		}
 	case models.Gauge:
 		if val, exists := ms.data.Gauges[key]; exists{
-			return strconv.FormatFloat(val, 'f', 5, 64), nil
+			return strconv.FormatFloat(val, 'f', -1, 64), nil
 		}
 	}
 	return "", ErrNotExists

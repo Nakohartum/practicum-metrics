@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -42,15 +41,6 @@ func (mh *MetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error setting metric data", http.StatusBadRequest)
 		return
 	}
-
-	res, err := mh.service.GetData(path)
-
-	if err == nil {
-		fmt.Println(res)
-	} else{
-		fmt.Println(err)
-	}
-
 
 	w.WriteHeader(http.StatusOK)
 }
