@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 	"strings"
-
 	"github.com/Nakohartum/practicum-metrics/internal/service"
 )
 

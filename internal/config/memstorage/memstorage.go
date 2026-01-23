@@ -15,12 +15,18 @@ type MemStorage struct {
 	data *models.StorageModel
 }
 
+
 func NewMemStorage(model *models.StorageModel) *MemStorage {
 	return &MemStorage{
 		data: model,
 	}
 }
 
+func NewMemStubStorage() *MemStorage {
+	return &MemStorage{
+		data: models.NewStorageModel(),
+	}
+}
 
 func (ms *MemStorage) GetData(metricType, key string) (string, error){
 	switch metricType{
@@ -42,7 +48,6 @@ func (ms *MemStorage) SetData(metricType, key, value string) error{
 	case models.Counter:
 		val, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
-			
 			return err
 		}
 		ms.data.Counters[key] += val
