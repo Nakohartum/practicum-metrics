@@ -19,7 +19,14 @@ func main() {
 	repo := repository.NewMemRepo(conf)
 	metricsService := service.NewMetricsService(repo)
 	metricsHandler := handler.NewMetricsHandler(metricsService)
-	router.Post("/update/{metricType}/{metricName}/{metricValue}", metricsHandler.ServeHTTP)
+
+	router.Post("/update/{metricType}/{metricName}/{metricValue}", metricsHandler.SetMetricDataHandle)
+	router.Route("/", func(r chi.Router) {
+		r.Get("/", metricsHandler.ServePage)
+		r.Route("/value", func(r chi.Router) {
+			r.Get("/{metricType}/{metricName}", metricsHandler.GetMetricDataHandle)
+		})
+	})
 
 	http.ListenAndServe(":8080", router)
 }

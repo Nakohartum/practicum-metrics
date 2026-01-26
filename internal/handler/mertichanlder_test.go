@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,14 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestServeHTTP(t *testing.T) {
+func TestSetMetricDataHandle(t *testing.T) {
 
 	repo := repository.NewMemRepo(config.NewMemStubStorage())
 	ms := service.NewMetricsService(repo)
 	mh := NewMetricsHandler(ms)
 
 	r := chi.NewRouter()
-	r.Post("/update/{metricType}/{metricName}/{metricValue}", mh.ServeHTTP)
+	r.Post("/update/{metricType}/{metricName}/{metricValue}", mh.SetMetricDataHandle)
 
 	server := httptest.NewServer(r)
 
@@ -66,7 +65,6 @@ func TestServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fmt.Println("URL "+server.URL+tt.path)
 			request, err := http.NewRequest(tt.method, server.URL+tt.path, http.NoBody)
 			require.NoError(t, err)
 			defer request.Body.Close()
@@ -80,6 +78,139 @@ func TestServeHTTP(t *testing.T) {
 
 
 			assert.Equal(t, tt.statusCode, resp.StatusCode)
+		})
+	}
+}
+
+func TestGetMetricDataHandle(t *testing.T){
+	repo := repository.NewMemRepo(config.NewMemStubStorage())
+	repo.SetData("counter", "cpu", "1")
+	repo.SetData("gauge", "cpu", "1.5")
+	ms := service.NewMetricsService(repo)
+	mh := NewMetricsHandler(ms)
+
+	r := chi.NewRouter()
+
+	r.Get("/value/{metricType}/{metricName}", mh.GetMetricDataHandle)
+
+	server := httptest.NewServer(r)
+
+	tests := []struct{
+		name string
+		path string
+		statusCode int
+		body string
+		method string
+	}{
+		{
+			name: "positive test #1",
+			path: "/value/counter/cpu",
+			statusCode: http.StatusOK,
+			body: "Metric name: cpu.\nMetric value:1",
+			method: http.MethodGet,
+		},
+		{
+			name: "positive test #2",
+			path: "/value/gauge/cpu",
+			statusCode: http.StatusOK,
+			body: "Metric name: cpu.\nMetric value:1.5",
+			method: http.MethodGet,
+		},
+		{
+			name: "method not allowed",
+			path: "/value/counter/cpu",
+			statusCode: http.StatusMethodNotAllowed,
+			body: "",
+			method: http.MethodPost,
+		},
+		{
+			name: "no metric found #1",
+			path: "/value//",
+			statusCode: http.StatusNotFound,
+			body: "",
+			method: http.MethodGet,
+		},
+		{
+			name: "no metric found #2",
+			path: "/value/gauge/video",
+			statusCode: http.StatusNotFound,
+			body: "",
+			method: http.MethodGet,
+		},
+	}
+
+	for _, tt := range tests{
+		t.Run(tt.name, func(t *testing.T) {
+			request, err := http.NewRequest(tt.method, server.URL + tt.path, http.NoBody)
+
+			require.NoError(t, err)
+			defer request.Body.Close()
+
+			resp, err := server.Client().Do(request)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			res, err := io.ReadAll(resp.Body)
+
+			if tt.body != ""{
+				assert.Equal(t, tt.body, string(res))
+			}
+
+			require.Equal(t, tt.statusCode, resp.StatusCode)
+		})
+	}
+}
+
+
+func TestServePage(t *testing.T){
+	repo := repository.NewMemRepo(config.NewMemStubStorage())
+	ms := service.NewMetricsService(repo)
+	mh := NewMetricsHandler(ms)
+
+	r := chi.NewRouter()
+
+	r.Get("/", mh.ServePage)
+
+	server := httptest.NewServer(r)
+
+	tests := []struct{
+		name string
+		statusCode int
+		contentType string
+		method string
+	}{
+		{
+			name: "positive test #1",
+			statusCode: http.StatusOK,
+			contentType: "text/html; charset=utf-8",
+			method: http.MethodGet,
+		},
+		{
+			name: "method not allowed",
+			statusCode: http.StatusMethodNotAllowed,
+			contentType: "",
+			method: http.MethodPost,
+		},
+	}
+
+	for _, tt := range tests{
+		t.Run(tt.name, func(t *testing.T) {
+			request, err := http.NewRequest(tt.method, server.URL, http.NoBody)
+
+			require.NoError(t, err)
+			defer request.Body.Close()
+
+			resp, err := server.Client().Do(request)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			if tt.contentType != ""{
+				require.Equal(t, tt.contentType, resp.Header.Get("Content-Type"))
+			}
+
+			require.Equal(t, tt.statusCode, resp.StatusCode)
 		})
 	}
 }

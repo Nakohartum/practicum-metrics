@@ -15,6 +15,12 @@ type MemStorage struct {
 	data *models.StorageModel
 }
 
+type StringAnswer struct {
+	Type  string
+	Name  string
+	Value string
+}
+
 
 func NewMemStorage(model *models.StorageModel) *MemStorage {
 	return &MemStorage{
@@ -28,18 +34,26 @@ func NewMemStubStorage() *MemStorage {
 	}
 }
 
-func (ms *MemStorage) GetData(metricType, key string) (string, error){
+func (ms *MemStorage) GetData(metricType, key string) (StringAnswer, error){
 	switch metricType{
 	case models.Counter:
 		if val, exists := ms.data.Counters[key]; exists{
-			return strconv.FormatInt(val, 10), nil
+			return StringAnswer{
+				Type: "Counter",
+				Name: key,
+				Value: strconv.FormatInt(val, 10),
+			}, nil
 		}
 	case models.Gauge:
 		if val, exists := ms.data.Gauges[key]; exists{
-			return strconv.FormatFloat(val, 'f', -1, 64), nil
+			return StringAnswer{
+				Type: "Counter",
+				Name: key,
+				Value: strconv.FormatFloat(val, 'f', -1, 64),
+			}, nil 
 		}
 	}
-	return "", ErrNotExists
+	return StringAnswer{}, ErrNotExists
 }
 
 
@@ -62,4 +76,26 @@ func (ms *MemStorage) SetData(metricType, key, value string) error{
 	}
 
 	return errors.New("no metric found")
+}
+
+func (ms *MemStorage) GetAll() []StringAnswer{
+	var res []StringAnswer;
+
+	for k, v := range ms.data.Counters{
+		res = append(res, StringAnswer{
+			Type: "Counter",
+			Name: k,
+			Value: strconv.FormatInt(v, 10),
+		})
+	}
+
+	for k, v := range ms.data.Gauges {
+		res = append(res, StringAnswer{
+			Type: "Gauge",
+			Name: k,
+			Value: strconv.FormatFloat(v, 'f', -1, 64),
+		})
+	}
+
+	return res
 }
