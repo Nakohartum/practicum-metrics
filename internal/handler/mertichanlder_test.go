@@ -153,6 +153,8 @@ func TestGetMetricDataHandle(t *testing.T){
 
 			res, err := io.ReadAll(resp.Body)
 
+			require.NoError(t, err)
+
 			if tt.body != ""{
 				assert.Equal(t, tt.body, string(res))
 			}

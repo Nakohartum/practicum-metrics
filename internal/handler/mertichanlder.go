@@ -126,11 +126,12 @@ func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request){
 	
 	data := mh.service.GetAll()
 
+	w.WriteHeader(http.StatusOK)
 
 	if err := NewPageHandler(mh.service).tpl.Execute(w, data); err != nil{
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	
 }
