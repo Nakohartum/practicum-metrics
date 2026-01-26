@@ -8,17 +8,18 @@ import (
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
+	"github.com/go-chi/chi/v5"
 )
 
 func main() {
+	router := chi.NewRouter()
 
-	mux := http.NewServeMux()
 	model := models.NewStorageModel()
 	conf := config.NewMemStorage(model)
 	repo := repository.NewMemRepo(conf)
 	metricsService := service.NewMetricsService(repo)
 	metricsHandler := handler.NewMetricsHandler(metricsService)
-	mux.Handle("/update/", metricsHandler)
+	router.Post("/update/{metricType}/{metricName}/{metricValue}", metricsHandler.ServeHTTP)
 
-	http.ListenAndServe(":8080", mux)
+	http.ListenAndServe(":8080", router)
 }

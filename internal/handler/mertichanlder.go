@@ -2,8 +2,9 @@ package handler
 
 import (
 	"net/http"
-	"strings"
+
 	"github.com/Nakohartum/practicum-metrics/internal/service"
+	"github.com/go-chi/chi/v5"
 )
 
 type MetricsHandler struct {
@@ -17,29 +18,26 @@ func NewMetricsHandler(s *service.MetricsService) *MetricsHandler {
 }
 
 func (mh *MetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
 	if r.Method != http.MethodPost{
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	path := strings.TrimPrefix(r.URL.Path, "/update/")
+	metricType := chi.URLParam(r, "metricType")
+	metricName := chi.URLParam(r, "metricName")
+	metricValue := chi.URLParam(r, "metricValue")
+	
 
-	parts := strings.Split(path, "/")
-
-	if len(parts) < 3 || parts[1] == "" {
+	if metricName == "" {
 		http.Error(w, "no metric's name", http.StatusNotFound)
 		return
 	}
 
-	metricType := parts[0]
-	metricKey := parts[1]
-	metricValue := parts[2]
-
-	
-	if err := mh.service.SetData(metricType, metricKey, metricValue); err != nil {
+	if err := mh.service.SetData(metricType, metricName, metricValue); err != nil {
 		http.Error(w, "error setting metric data", http.StatusBadRequest)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-}
+}	
