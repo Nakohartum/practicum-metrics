@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"html/template"
 	"net/http"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
@@ -64,8 +63,8 @@ func (mh *MetricsHandler) GetMetricDataHandle(w http.ResponseWriter, r *http.Req
 		http.Error(w, "no metric found", http.StatusNotFound)
 		return
 	}
-
-	w.Write([]byte(fmt.Sprintf("Metric name: %s.\nMetric value:%s", metricData.Name, metricData.Value)))
+ 
+	w.Write([]byte(metricData.Value))
 	w.WriteHeader(http.StatusOK)
 }
 

@@ -106,14 +106,14 @@ func TestGetMetricDataHandle(t *testing.T){
 			name: "positive test #1",
 			path: "/value/counter/cpu",
 			statusCode: http.StatusOK,
-			body: "Metric name: cpu.\nMetric value:1",
+			body: "1",
 			method: http.MethodGet,
 		},
 		{
 			name: "positive test #2",
 			path: "/value/gauge/cpu",
 			statusCode: http.StatusOK,
-			body: "Metric name: cpu.\nMetric value:1.5",
+			body: "1.5",
 			method: http.MethodGet,
 		},
 		{
