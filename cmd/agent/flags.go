@@ -10,7 +10,8 @@ type Address struct {
 	port string
 }
 
-func (a *Address) URL() string {
+
+func (a *Address) String() string {
 	host := a.host
 	if host == "" {
 		host = "localhost"
@@ -20,14 +21,6 @@ func (a *Address) URL() string {
 		port = "8080"
 	}
 	return "http://" + host + ":" + port
-}
-
-
-func (a *Address) String() string {
-	if a.host == "" {
-		return ":" + a.port
-	}
-	return a.host + ":" + a.port
 }
 
 func (a *Address) Set(value string) error {
