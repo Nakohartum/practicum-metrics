@@ -20,13 +20,14 @@ func (a *Address) Set(value string) error{
 	if res[0] == ""{
 		res[0] = "localhost"
 	}
+	res[0] = "http://" + res[0]
 	a.url = res[0]
 	a.port = res[1]
 	return nil
 }
 
 var address Address = Address{
-	url: "localhost",
+	url: "http://localhost",
 	port: "8080",
 }
 func parseFlags() {
