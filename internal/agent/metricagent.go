@@ -103,9 +103,9 @@ func (mA *MetricsAgent) sendMetrics(path string) {
 	mA.sendCounterMetrics(path)
 }
 
-func (mA *MetricsAgent) Run() {
+func (mA *MetricsAgent) Run(host string) {
 	elapsed := time.Duration(0)
-	endpoint := "http://localhost:8080/update"
+	endpoint := host
 
 
 	for {

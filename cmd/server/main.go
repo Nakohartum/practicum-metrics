@@ -12,6 +12,7 @@ import (
 )
 
 func main() {
+	parseFlags()
 	router := chi.NewRouter()
 
 	model := models.NewStorageModel()
@@ -28,5 +29,5 @@ func main() {
 		})
 	})
 
-	http.ListenAndServe(":8080", router)
+	http.ListenAndServe(addressString, router)
 }

@@ -5,6 +5,7 @@ import (
 )
 
 func main() {
-	var a = agent.NewAgentMetrics(2, 10)
-	a.Run()
+	parseFlags()
+	var a = agent.NewAgentMetrics(int(pollInterval), int(reportInterval))
+	a.Run(addressString)
 }
