@@ -29,5 +29,5 @@ func main() {
 		})
 	})
 
-	http.ListenAndServe(addressString, router)
+	http.ListenAndServe(address.String(), router)
 }
