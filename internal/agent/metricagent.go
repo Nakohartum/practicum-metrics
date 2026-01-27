@@ -2,12 +2,11 @@ package agent
 
 import (
 	"fmt"
-	"io"
 	"math/rand"
-	"net/http"
 	"runtime"
 	"strconv"
 	"time"
+	"github.com/go-resty/resty/v2"
 )
 
 type MetricsAgent struct {
@@ -15,6 +14,7 @@ type MetricsAgent struct {
 	ReportInterval time.Duration
 	gaugeMetrics   map[string]float64
 	counterMetrics map[string]int64
+	client *resty.Client
 }
 
 func NewAgentMetrics(pollInterval, reportInterval int) *MetricsAgent {
@@ -23,6 +23,7 @@ func NewAgentMetrics(pollInterval, reportInterval int) *MetricsAgent {
 		ReportInterval: time.Duration(reportInterval * int(time.Second)),
 		gaugeMetrics:   make(map[string]float64),
 		counterMetrics: make(map[string]int64),
+		client: resty.New().SetHeader("Content-Type", "text/plain"),
 	}
 }
 
@@ -69,61 +70,37 @@ func (mA *MetricsAgent) setCounterMetrics() {
 	mA.counterMetrics["pollCount"] = 1
 }
 
-func (mA *MetricsAgent) sendGaugeMetrics(client *http.Client, path string){
+func (mA *MetricsAgent) sendGaugeMetrics(path string){
 	for k, v := range mA.gaugeMetrics{
 		endpoint := fmt.Sprintf("%s/gauge/%s/%s", path, k, strconv.FormatFloat(v, 'f', -1, 64))
-		request, err := http.NewRequest(http.MethodPost, endpoint, nil)
 		
-		if err != nil {
-			panic(err)
-		}
-
-		request.Header.Add("Content-Type", "text/plain")
-
-		response, err := client.Do(request)
+		resp, err := mA.client.R().Post(endpoint)
 
 		if err != nil {
 			panic(err)
 		}
 
-		if _, err := io.ReadAll(response.Body); err != nil {
-			panic(err)
-		}
-
-		response.Body.Close()
+		fmt.Print(resp)
 	}
 }
 
-func (mA *MetricsAgent) sendCounterMetrics(client *http.Client, path string){
+func (mA *MetricsAgent) sendCounterMetrics(path string){
 	for k, v := range mA.counterMetrics{
 		endpoint := fmt.Sprintf("%s/counter/%s/%s", path, k, strconv.FormatInt(v, 10))
-		request, err := http.NewRequest(http.MethodPost, endpoint, nil)
+		
+		resp, err := mA.client.R().Post(endpoint)
 
 		if err != nil {
 			panic(err)
 		}
 
-		request.Header.Add("Content-Type", "text/plain")
-
-		response, err := client.Do(request)
-
-		if err != nil {
-			panic(err)
-		}
-
-		if _, err := io.ReadAll(response.Body); err != nil {
-			panic(err)
-		}
-
-		response.Body.Close()
+		fmt.Print(resp)
 	}
 }
 
 func (mA *MetricsAgent) sendMetrics(path string) {
-	client := &http.Client{}
-	
-	mA.sendGaugeMetrics(client, path)
-	mA.sendCounterMetrics(client, path)
+	mA.sendGaugeMetrics(path)
+	mA.sendCounterMetrics(path)
 }
 
 func (mA *MetricsAgent) Run() {
