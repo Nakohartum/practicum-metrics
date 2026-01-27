@@ -2,42 +2,54 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"strings"
 )
-
-type Address struct{
-	url string
+type Address struct {
+	host string
 	port string
 }
 
-
-func (a *Address) String() string{
-	return a.url + ":" + a.port
+func (a *Address) URL() string {
+	host := a.host
+	if host == "" {
+		host = "localhost"
+	}
+	port := a.port
+	if port == "" {
+		port = "8080"
+	}
+	return "http://" + host + ":" + port
 }
 
-func (a *Address) Set(value string) error{
-	res := strings.Split(value, ":")
 
-	if res[0] == ""{
-		res[0] = "localhost"
+func (a *Address) String() string {
+	if a.host == "" {
+		return ":" + a.port
 	}
-	res[0] = "http://" + res[0]
-	a.url = res[0]
-	a.port = res[1]
+	return a.host + ":" + a.port
+}
+
+func (a *Address) Set(value string) error {
+	parts := strings.Split(value, ":")
+	if len(parts) != 2 {
+		return fmt.Errorf("bad address %q, want host:port", value)
+	}
+	a.host = parts[0]
+	a.port = parts[1]
+	if a.port == "" {
+		a.port = "8080"
+	}
 	return nil
 }
 
 var reportInterval int64
 var pollInterval int64
-var address Address = Address{
-	url: "http://localhost",
-	port: "8080",
-}
-
+var address = Address{host: "localhost", port: "8080"}
 
 func parseFlags() {
-	flag.Var(&address, "a", "server address")
-	flag.Int64Var(&reportInterval, "r", 10, "report interval - interval used to send data to the server")
-	flag.Int64Var(&pollInterval, "p", 2, "poll interval - interval used to update agent's data")
+	flag.Var(&address, "a", "server address (host:port)")
+	flag.Int64Var(&reportInterval, "r", 10, "report interval")
+	flag.Int64Var(&pollInterval, "p", 2, "poll interval")
 	flag.Parse()
 }

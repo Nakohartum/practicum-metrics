@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"strings"
 )
 
@@ -17,17 +18,21 @@ func (a *Address) String() string{
 func (a *Address) Set(value string) error{
 	res := strings.Split(value, ":")
 
-	if res[0] == ""{
-		res[0] = "localhost"
+	if len(res) != 2{
+		return fmt.Errorf("bad address %q, want host:port", value)
 	}
-	res[0] = "http://" + res[0]
+
 	a.url = res[0]
-	a.port = res[1]
+	if res[1] == "" {
+		a.port = "8080"
+	} else{
+		a.port = res[1]
+	}
 	return nil
 }
 
 var address Address = Address{
-	url: "http://localhost",
+	url: "",
 	port: "8080",
 }
 func parseFlags() {
