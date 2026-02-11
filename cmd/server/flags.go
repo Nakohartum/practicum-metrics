@@ -9,12 +9,11 @@ import (
 )
 
 type Address struct{
-	url string  `env:"SERVER_URL"`
-	port string `env:"SERVER_PORT"`
+	url string  `env:"ADDRESS"`
 }
 
 func (a *Address) String() string{
-	return a.url + ":" + a.port
+	return a.url
 }
 
 func (a *Address) Set(value string) error{
@@ -24,18 +23,12 @@ func (a *Address) Set(value string) error{
 		return fmt.Errorf("bad address %q, want host:port", value)
 	}
 
-	a.url = res[0]
-	if res[1] == "" {
-		a.port = "8080"
-	} else{
-		a.port = res[1]
-	}
+	a.url = value
 	return nil
 }
 
 var address Address = Address{
-	url: "",
-	port: "8080",
+	url: "localhost:8080",
 }
 func parseFlags() {
 
