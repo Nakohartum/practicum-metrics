@@ -42,7 +42,7 @@ func parseFlags() {
 	hostErr := env.Parse(&address)
 	if hostErr != nil {
 		flag.Var(&address, "a", "server address")
-		flag.Parse()
+		
 	}
-	
+	flag.Parse()
 }
