@@ -39,10 +39,8 @@ var address Address = Address{
 }
 func parseFlags() {
 
-	hostErr := env.Parse(&address)
-	if hostErr != nil {
-		flag.Var(&address, "a", "server address")
-		
-	}
+	
+	flag.Var(&address, "a", "server address")
+	env.Parse(&address)
 	flag.Parse()
 }
