@@ -3,9 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"strings"
-
-	"github.com/caarlos0/env/v11"
 )
 
 type Address struct{
@@ -31,9 +30,12 @@ var address Address = Address{
 	url: "localhost:8080",
 }
 func parseFlags() {
+	
+	flag.Var(&address, "a", "server address (host:port)")
+	flag.Parse()
 
 	
-	flag.Var(&address, "a", "server address")
-	env.Parse(&address)
-	flag.Parse()
+	if v, ok := os.LookupEnv("ADDRESS"); ok && v != "" {
+		_ = address.Set(v)
+	}
 }
