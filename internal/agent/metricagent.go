@@ -72,7 +72,7 @@ func (mA *MetricsAgent) setCounterMetrics() {
 
 func (mA *MetricsAgent) sendGaugeMetrics(path string){
 	for k, v := range mA.gaugeMetrics{
-		endpoint := fmt.Sprintf("%s/gauge/%s/%s", path, k, strconv.FormatFloat(v, 'f', -1, 64))
+		endpoint := fmt.Sprintf("%s/update/gauge/%s/%s", path, k, strconv.FormatFloat(v, 'f', -1, 64))
 		
 		resp, err := mA.client.R().Post(endpoint)
 
@@ -86,7 +86,7 @@ func (mA *MetricsAgent) sendGaugeMetrics(path string){
 
 func (mA *MetricsAgent) sendCounterMetrics(path string){
 	for k, v := range mA.counterMetrics{
-		endpoint := fmt.Sprintf("%s/counter/%s/%s", path, k, strconv.FormatInt(v, 10))
+		endpoint := fmt.Sprintf("%s/update/counter/%s/%s", path, k, strconv.FormatInt(v, 10))
 		
 		resp, err := mA.client.R().Post(endpoint)
 
@@ -120,5 +120,4 @@ func (mA *MetricsAgent) Run(host string) {
 		time.Sleep(mA.PollInterval)
 	}
 }
-
 

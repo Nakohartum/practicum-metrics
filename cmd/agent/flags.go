@@ -3,11 +3,15 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
+
+	"github.com/caarlos0/env/v11"
 )
 type Address struct {
-	host string
-	port string
+	host string `env:"AGENT_HOST"`
+	port string `env:"AGENT_PORT"`
 }
 
 
@@ -41,8 +45,25 @@ var pollInterval int64
 var address = Address{host: "localhost", port: "8080"}
 
 func parseFlags() {
-	flag.Var(&address, "a", "server address (host:port)")
-	flag.Int64Var(&reportInterval, "r", 10, "report interval")
-	flag.Int64Var(&pollInterval, "p", 2, "poll interval")
+
+	hostErr := env.Parse(&address)
+	if hostErr != nil {
+		flag.Var(&address, "a", "server address (host:port)")
+	}
+
+	reportInt, repIntErr := strconv.ParseInt(os.Getenv("REPORT_INTERVAL"), 10, 64)
+	if repIntErr != nil {
+		flag.Int64Var(&reportInterval, "r", 10, "report interval")
+	}else{
+		reportInterval = reportInt
+	}
+
+
+	pollInt, polIntErr := strconv.ParseInt(os.Getenv("POLL_INTERVAL"), 10, 64)
+	if polIntErr != nil {
+		flag.Int64Var(&pollInterval, "p", 2, "poll interval")
+	}else{
+		pollInterval = pollInt
+	}
 	flag.Parse()
 }

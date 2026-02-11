@@ -4,11 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+
+	"github.com/caarlos0/env/v11"
 )
 
 type Address struct{
-	url string
-	port string
+	url string  `env:"SERVER_URL"`
+	port string `env:"SERVER_PORT"`
 }
 
 func (a *Address) String() string{
@@ -36,6 +38,11 @@ var address Address = Address{
 	port: "8080",
 }
 func parseFlags() {
-	flag.Var(&address, "a", "server address")
-	flag.Parse()
+
+	hostErr := env.Parse(&address)
+	if hostErr != nil {
+		flag.Var(&address, "a", "server address")
+		flag.Parse()
+	}
+	
 }
