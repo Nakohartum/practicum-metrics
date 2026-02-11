@@ -97,7 +97,7 @@ func TestSendGaugeMetrics(t *testing.T){
 
 			ma.client.SetTransport(ts.Client().Transport)
 
-			ma.sendGaugeMetrics(ts.URL+"/update")
+			ma.sendGaugeMetrics(ts.URL)
 
 			// проверяем все ли пути прошли
 			if len(gotPaths) != len(tt.want){
@@ -212,7 +212,7 @@ func TestSendCounterMetrics(t *testing.T){
 
 			ma.client.SetTransport(ts.Client().Transport)
 
-			ma.sendCounterMetrics(ts.URL+"/update")
+			ma.sendCounterMetrics(ts.URL)
 
 			// проверяем все ли пути прошли
 			if len(gotPaths) != len(tt.want){
