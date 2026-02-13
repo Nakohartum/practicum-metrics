@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -18,13 +20,15 @@ type MetricsAgent struct {
 }
 
 func NewAgentMetrics(pollInterval, reportInterval int) *MetricsAgent {
-	return &MetricsAgent{
+	var agent = MetricsAgent{
 		PollInterval:   time.Duration(pollInterval * int(time.Second)),
 		ReportInterval: time.Duration(reportInterval * int(time.Second)),
 		gaugeMetrics:   make(map[string]float64),
 		counterMetrics: make(map[string]int64),
 		client: resty.New().SetHeader("Content-Type", "text/plain"),
 	}
+	internalLogger.AttachLoggingToRequest(agent.client)
+	return &agent
 }
 
 func (mA *MetricsAgent) setRuntimeGaugeMetrics() {
@@ -69,6 +73,7 @@ func (mA *MetricsAgent) setGaugeMetric(metricName string, value float64) {
 func (mA *MetricsAgent) setCounterMetrics() {
 	mA.counterMetrics["pollCount"] = 1
 }
+
 
 func (mA *MetricsAgent) sendGaugeMetrics(path string){
 	for k, v := range mA.gaugeMetrics{

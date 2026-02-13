@@ -18,9 +18,9 @@ func NewMetricsHandler(s *service.MetricsService) *MetricsHandler {
 	}
 }
 
-func (mh *MetricsHandler) SetMetricDataHandle(w http.ResponseWriter, r *http.Request) {
-
-	if r.Method != http.MethodPost{
+func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
+	fun := func (w http.ResponseWriter, r *http.Request)  {
+		if r.Method != http.MethodPost{
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -41,6 +41,8 @@ func (mh *MetricsHandler) SetMetricDataHandle(w http.ResponseWriter, r *http.Req
 	}
 
 	w.WriteHeader(http.StatusOK)
+	}
+	return http.HandlerFunc(fun)
 }	
 
 

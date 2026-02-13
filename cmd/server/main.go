@@ -5,6 +5,7 @@ import (
 
 	config "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
 	"github.com/Nakohartum/practicum-metrics/internal/handler"
+	"github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
@@ -21,7 +22,7 @@ func main() {
 	metricsService := service.NewMetricsService(repo)
 	metricsHandler := handler.NewMetricsHandler(metricsService)
 
-	router.Post("/update/{metricType}/{metricName}/{metricValue}", metricsHandler.SetMetricDataHandle)
+	router.Post("/update/{metricType}/{metricName}/{metricValue}", logger.AttachLoggingToResponse(metricsHandler.SetMetricDataHandle()))
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", metricsHandler.ServePage)
 		r.Route("/value", func(r chi.Router) {

@@ -21,7 +21,7 @@ func TestSetMetricDataHandle(t *testing.T) {
 	mh := NewMetricsHandler(ms)
 
 	r := chi.NewRouter()
-	r.Post("/update/{metricType}/{metricName}/{metricValue}", mh.SetMetricDataHandle)
+	r.Post("/update/{metricType}/{metricName}/{metricValue}", func(w http.ResponseWriter, r *http.Request) {mh.SetMetricDataHandle().ServeHTTP(w, r)})
 
 	server := httptest.NewServer(r)
 
