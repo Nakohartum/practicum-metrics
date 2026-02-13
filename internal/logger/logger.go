@@ -2,7 +2,6 @@ package logger
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"time"
 
