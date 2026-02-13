@@ -12,17 +12,19 @@ import (
 
 var logger, err = zap.NewDevelopment()
 
+var timeStartKey = "start"
+
 var sugar = *logger.Sugar()
 
 func AttachLoggingToRequest(r *resty.Client) {
 	r.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
-		ctx := context.WithValue(r.Context(), "start", time.Now())
+		ctx := context.WithValue(r.Context(), timeStartKey, time.Now())
 		r.SetContext(ctx)
 		return nil
 	})
 
 	r.OnAfterResponse(func(c *resty.Client, r *resty.Response) error {
-		start, _ := r.Request.Context().Value("start").(time.Time)
+		start, _ := r.Request.Context().Value(timeStartKey).(time.Time)
 		duration := time.Since(start)
 
 		uri := r.Request.RawRequest.RequestURI
@@ -59,10 +61,7 @@ func AttachLoggingToResponse(h http.Handler) http.HandlerFunc {
 		}
 		h.ServeHTTP(lrw, r)
 
-		res,_ := io.ReadAll(r.Body)
-		size := len(res)
-
-		sugar.Infow("response", "status code", r.Response.StatusCode, "size of response", size)
+		sugar.Infow("response", "status code", lrw.status, "size of response", lrw.size)
 	}
 
 	return http.HandlerFunc(logFn)
