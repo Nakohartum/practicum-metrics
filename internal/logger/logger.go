@@ -9,21 +9,22 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger, err = zap.NewDevelopment()
+var logger, _ = zap.NewDevelopment()
 
-var timeStartKey = "start"
+type loggerKey string
+var timeKey = loggerKey("start")
 
 var sugar = *logger.Sugar()
 
 func AttachLoggingToRequest(r *resty.Client) {
 	r.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
-		ctx := context.WithValue(r.Context(), timeStartKey, time.Now())
+		ctx := context.WithValue(r.Context(), timeKey, time.Now())
 		r.SetContext(ctx)
 		return nil
 	})
 
 	r.OnAfterResponse(func(c *resty.Client, r *resty.Response) error {
-		start, _ := r.Request.Context().Value(timeStartKey).(time.Time)
+		start, _ := r.Request.Context().Value(timeKey).(time.Time)
 		duration := time.Since(start)
 
 		uri := r.Request.RawRequest.RequestURI
