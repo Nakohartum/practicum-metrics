@@ -54,14 +54,12 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 				return
 			}
 			mh.service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))
-			break;
 		case models.Gauge:
 			if metric.Value == nil {
 				http.Error(w, "value is required for gauge type", http.StatusBadRequest)
 				return
 			}
 			mh.service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
-			break;
 		}
 		w.WriteHeader(http.StatusCreated)
 	}
@@ -129,29 +127,33 @@ func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 	return http.HandlerFunc(fun)
 }
 
-func (mh *MetricsHandler) GetMetricDataHandle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
+func (mh *MetricsHandler) GetMetricDataHandle() http.Handler{
+	fun := func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		metricType := chi.URLParam(r, "metricType")
+		metricName := chi.URLParam(r, "metricName")
+
+		if metricName == "" || metricType == "" {
+			http.Error(w, "no metric found", http.StatusNotFound)
+		}
+
+		metricData, err := mh.service.GetData(metricType, metricName)
+
+		if err != nil {
+			http.Error(w, "no metric found", http.StatusNotFound)
+			return
+		}
+
+		w.Write([]byte(metricData.Value))
+		w.WriteHeader(http.StatusOK)
 	}
-
-	metricType := chi.URLParam(r, "metricType")
-	metricName := chi.URLParam(r, "metricName")
-
-	if metricName == "" || metricType == "" {
-		http.Error(w, "no metric found", http.StatusNotFound)
-	}
-
-	metricData, err := mh.service.GetData(metricType, metricName)
-
-	if err != nil {
-		http.Error(w, "no metric found", http.StatusNotFound)
-		return
-	}
-
-	w.Write([]byte(metricData.Value))
-	w.WriteHeader(http.StatusOK)
+	return http.HandlerFunc(fun)
 }
+
 
 type PageHandler struct {
 	service repository.Storage

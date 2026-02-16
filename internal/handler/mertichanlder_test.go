@@ -92,7 +92,7 @@ func TestGetMetricDataHandle(t *testing.T){
 
 	r := chi.NewRouter()
 
-	r.Get("/value/{metricType}/{metricName}", mh.GetMetricDataHandle)
+	r.Get("/value/{metricType}/{metricName}", func(w http.ResponseWriter, r *http.Request) {mh.GetMetricDataHandle().ServeHTTP(w,r)})
 
 	server := httptest.NewServer(r)
 

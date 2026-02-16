@@ -25,9 +25,9 @@ func main() {
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", logger.AttachLoggingToResponse(metricsHandler.SetMetricDataHandle()))
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", metricsHandler.ServePage)
-		r.Post("/update", logger.AttachLoggingToResponse(metricsHandler.UpdateMetricsDataHandle()))
-		r.Route("/value", func(r chi.Router) {
-			r.Get("/{metricType}/{metricName}", metricsHandler.GetMetricDataHandle)
+		r.Post("/update/", logger.AttachLoggingToResponse(metricsHandler.UpdateMetricsDataHandle()))
+		r.Route("/value/", func(r chi.Router) {
+			r.Get("/{metricType}/{metricName}", logger.AttachLoggingToResponse(metricsHandler.GetMetricDataHandle()))
 		})
 	})
 
