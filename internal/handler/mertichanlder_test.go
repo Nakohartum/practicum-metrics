@@ -236,12 +236,12 @@ func TestUpdateMetricsDataHandler(t *testing.T){
 	} {
 		{
 			name: "positive test #1",
-			statusCode: http.StatusCreated,
+			statusCode: http.StatusOK,
 			body: `{"id":"cpu","type":"gauge","value":0.75}`,
 		},
 		{
 			name: "positive test #2",
-			statusCode: http.StatusCreated,
+			statusCode: http.StatusOK,
 			body: `{"id":"cpu","type":"counter","delta":1}`,
 		},
 		{
