@@ -10,6 +10,7 @@ import (
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
 	metricsService := service.NewMetricsService(repo)
 	metricsHandler := handler.NewMetricsHandler(metricsService)
 
-	
+	router.Use(middleware.StripSlashes)
 	
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", metricsHandler.ServePage)
