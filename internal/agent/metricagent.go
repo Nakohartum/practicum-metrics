@@ -72,7 +72,7 @@ func (mA *MetricsAgent) setGaugeMetric(metricName string, value float64) {
 }
 
 func (mA *MetricsAgent) setCounterMetrics() {
-	mA.counterMetrics["pollCount"] = 1
+	mA.counterMetrics["pollCount"]++
 }
 
 
@@ -85,14 +85,8 @@ func (mA *MetricsAgent) sendGaugeMetrics(path string){
 			MType: "gauge",
 			Value: &v,
 		}
-
-		jsonData, err := json.Marshal(metric)
-
-		if err != nil {
-			panic(err)
-		}
 		
-		resp, err := mA.client.R().SetBody(jsonData).Post(endpoint)
+		resp, err := mA.client.R().SetBody(metric).Post(endpoint)
 
 		if err != nil {
 			log.Println(err)
