@@ -37,34 +37,34 @@ func (mA *MetricsAgent) setRuntimeGaugeMetrics() {
 
 	runtime.ReadMemStats(&m)
 
-	mA.setGaugeMetric("alloc",float64(m.Alloc))
-	mA.setGaugeMetric("buckHashSys", float64(m.BuckHashSys))
-	mA.setGaugeMetric("frees", float64(m.Frees))
-	mA.setGaugeMetric("gCCPUFraction", m.GCCPUFraction)
-	mA.setGaugeMetric("gCSys", float64(m.GCSys))
-	mA.setGaugeMetric("heapAlloc", float64(m.HeapAlloc))
-	mA.setGaugeMetric("heapInuse", float64(m.HeapInuse))
-	mA.setGaugeMetric("heapIdle", float64(m.HeapIdle))
-	mA.setGaugeMetric("heapObjects", float64(m.HeapObjects))
-	mA.setGaugeMetric("heapReleased", float64(m.HeapReleased))
-	mA.setGaugeMetric("heapSys", float64(m.HeapSys))
-	mA.setGaugeMetric("lastGC", float64(m.LastGC))
-	mA.setGaugeMetric("lookups", float64(m.Lookups))
-	mA.setGaugeMetric("mCacheInuse", float64(m.MCacheInuse))
-	mA.setGaugeMetric("mCacheSys", float64(m.MCacheSys))
-	mA.setGaugeMetric("mSpanInuse", float64(m.MSpanInuse))
-	mA.setGaugeMetric("mSpanSys", float64(m.MSpanSys))
-	mA.setGaugeMetric("mallocs", float64(m.Mallocs))
-	mA.setGaugeMetric("nextGC", float64(m.NextGC))
-	mA.setGaugeMetric("numForcedGC", float64(m.NumForcedGC))
-	mA.setGaugeMetric("numGC", float64(m.NumGC))
-	mA.setGaugeMetric("otherSys", float64(m.OtherSys))
-	mA.setGaugeMetric("pauseTotalNs", float64(m.PauseTotalNs))
-	mA.setGaugeMetric("stackInuse", float64(m.StackInuse))
-	mA.setGaugeMetric("stackSys", float64(m.StackSys))
-	mA.setGaugeMetric("sys", float64(m.Sys))
-	mA.setGaugeMetric("totalAlloc", float64(m.TotalAlloc))
-	mA.setGaugeMetric("randomValue", rand.Float64() * 100)
+	mA.setGaugeMetric("Alloc",float64(m.Alloc))
+	mA.setGaugeMetric("BuckHashSys", float64(m.BuckHashSys))
+	mA.setGaugeMetric("Frees", float64(m.Frees))
+	mA.setGaugeMetric("GCCPUFraction", m.GCCPUFraction)
+	mA.setGaugeMetric("GCSys", float64(m.GCSys))
+	mA.setGaugeMetric("HeapAlloc", float64(m.HeapAlloc))
+	mA.setGaugeMetric("HeapInuse", float64(m.HeapInuse))
+	mA.setGaugeMetric("HeapIdle", float64(m.HeapIdle))
+	mA.setGaugeMetric("HeapObjects", float64(m.HeapObjects))
+	mA.setGaugeMetric("HeapReleased", float64(m.HeapReleased))
+	mA.setGaugeMetric("HeapSys", float64(m.HeapSys))
+	mA.setGaugeMetric("LastGC", float64(m.LastGC))
+	mA.setGaugeMetric("Lookups", float64(m.Lookups))
+	mA.setGaugeMetric("MCacheInuse", float64(m.MCacheInuse))
+	mA.setGaugeMetric("MCacheSys", float64(m.MCacheSys))
+	mA.setGaugeMetric("MSpanInuse", float64(m.MSpanInuse))
+	mA.setGaugeMetric("MSpanSys", float64(m.MSpanSys))
+	mA.setGaugeMetric("Mallocs", float64(m.Mallocs))
+	mA.setGaugeMetric("NextGC", float64(m.NextGC))
+	mA.setGaugeMetric("NumForcedGC", float64(m.NumForcedGC))
+	mA.setGaugeMetric("NumGC", float64(m.NumGC))
+	mA.setGaugeMetric("OtherSys", float64(m.OtherSys))
+	mA.setGaugeMetric("PauseTotalNs", float64(m.PauseTotalNs))
+	mA.setGaugeMetric("StackInuse", float64(m.StackInuse))
+	mA.setGaugeMetric("StackSys", float64(m.StackSys))
+	mA.setGaugeMetric("Sys", float64(m.Sys))
+	mA.setGaugeMetric("TotalAlloc", float64(m.TotalAlloc))
+	mA.setGaugeMetric("RandomValue", rand.Float64() * 100)
 }
 
 func (mA *MetricsAgent) setGaugeMetric(metricName string, value float64) {
@@ -72,7 +72,7 @@ func (mA *MetricsAgent) setGaugeMetric(metricName string, value float64) {
 }
 
 func (mA *MetricsAgent) setCounterMetrics() {
-	mA.counterMetrics["pollCount"]++
+	mA.counterMetrics["PollCount"]++
 }
 
 
