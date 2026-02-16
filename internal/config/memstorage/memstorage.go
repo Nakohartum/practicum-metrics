@@ -39,7 +39,7 @@ func (ms *MemStorage) GetData(metricType, key string) (StringAnswer, error){
 	case models.Counter:
 		if val, exists := ms.data.Counters[key]; exists{
 			return StringAnswer{
-				Type: "Counter",
+				Type: models.Counter,
 				Name: key,
 				Value: strconv.FormatInt(val, 10),
 			}, nil
@@ -47,7 +47,7 @@ func (ms *MemStorage) GetData(metricType, key string) (StringAnswer, error){
 	case models.Gauge:
 		if val, exists := ms.data.Gauges[key]; exists{
 			return StringAnswer{
-				Type: "Counter",
+				Type: models.Gauge,
 				Name: key,
 				Value: strconv.FormatFloat(val, 'f', -1, 64),
 			}, nil 
@@ -83,7 +83,7 @@ func (ms *MemStorage) GetAll() []StringAnswer{
 
 	for k, v := range ms.data.Counters{
 		res = append(res, StringAnswer{
-			Type: "Counter",
+			Type: models.Counter,
 			Name: k,
 			Value: strconv.FormatInt(v, 10),
 		})
@@ -91,7 +91,7 @@ func (ms *MemStorage) GetAll() []StringAnswer{
 
 	for k, v := range ms.data.Gauges {
 		res = append(res, StringAnswer{
-			Type: "Gauge",
+			Type: models.Gauge,
 			Name: k,
 			Value: strconv.FormatFloat(v, 'f', -1, 64),
 		})
