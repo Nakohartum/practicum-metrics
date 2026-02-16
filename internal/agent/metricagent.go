@@ -3,10 +3,12 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"runtime"
 	"time"
 
+	"github.com/Nakohartum/practicum-metrics/internal/logger"
 	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/go-resty/resty/v2"
@@ -95,7 +97,7 @@ func (mA *MetricsAgent) sendGaugeMetrics(path string){
 		resp, err := mA.client.R().SetBody(jsonData).Post(endpoint)
 
 		if err != nil {
-			panic(err)
+			log.Println(err)
 		}
 
 		fmt.Print(resp)
