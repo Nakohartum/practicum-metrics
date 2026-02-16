@@ -7,8 +7,6 @@ import (
 	"math/rand"
 	"runtime"
 	"time"
-
-	"github.com/Nakohartum/practicum-metrics/internal/logger"
 	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/go-resty/resty/v2"
