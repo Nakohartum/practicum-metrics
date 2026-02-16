@@ -61,7 +61,7 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 			}
 			mh.service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
 		}
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusOK)
 	}
 	return http.HandlerFunc(fun)
 }
@@ -95,8 +95,9 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(responseData)
 		w.WriteHeader(http.StatusOK)
+		w.Write(responseData)
+		
 	}
 	return http.HandlerFunc(fun)
 }
@@ -147,9 +148,9 @@ func (mh *MetricsHandler) GetMetricDataHandle() http.Handler{
 			http.Error(w, "no metric found", http.StatusNotFound)
 			return
 		}
-
-		w.Write([]byte(metricData.Value))
 		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(metricData.Value))
+		
 	}
 	return http.HandlerFunc(fun)
 }
