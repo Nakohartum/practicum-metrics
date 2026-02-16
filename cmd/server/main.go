@@ -14,38 +14,26 @@ import (
 
 func main() {
 	parseFlags()
-
-	r := chi.NewRouter()
+	router := chi.NewRouter()
 
 	model := models.NewStorageModel()
 	conf := config.NewMemStorage(model)
 	repo := repository.NewMemRepo(conf)
-	service := service.NewMetricsService(repo)
-	h := handler.NewMetricsHandler(service)
+	metricsService := service.NewMetricsService(repo)
+	metricsHandler := handler.NewMetricsHandler(metricsService)
 
-	// главная страница
-	r.Get("/", h.ServePage)
+	
+	
+	router.Route("/", func(r chi.Router) {
+		r.Get("/", metricsHandler.ServePage)
+		r.Post("/update", logger.AttachLoggingToResponse(metricsHandler.UpdateMetricsDataHandle()))
+		r.Post("/update/", logger.AttachLoggingToResponse(metricsHandler.UpdateMetricsDataHandle()))
+		r.Post("/update/{metricType}/{metricName}/{metricValue}", logger.AttachLoggingToResponse(metricsHandler.SetMetricDataHandle()))
+		r.Route("/value", func(r chi.Router) {
+			r.Post("/", logger.AttachLoggingToResponse(metricsHandler.GetMetricsByNameHandle()))
+			r.Get("/{metricType}/{metricName}", logger.AttachLoggingToResponse(metricsHandler.GetMetricDataHandle()))
+		})
+	})
 
-	// JSON update (iteration7)
-	r.Post("/update",  logger.AttachLoggingToResponse(h.UpdateMetricsDataHandle()))
-	r.Post("/update/", logger.AttachLoggingToResponse(h.UpdateMetricsDataHandle()))
-
-	// старый формат: path-параметры
-	r.Post("/update/{metricType}/{metricName}/{metricValue}",
-		logger.AttachLoggingToResponse(h.SetMetricDataHandle()))
-	r.Post("/update/{metricType}/{metricName}/{metricValue}/",
-		logger.AttachLoggingToResponse(h.SetMetricDataHandle()))
-
-	// JSON получение значения
-	r.Post("/value",  logger.AttachLoggingToResponse(h.GetMetricsByNameHandle()))
-	r.Post("/value/", logger.AttachLoggingToResponse(h.GetMetricsByNameHandle()))
-
-	// старый формат получения
-	r.Get("/value/{metricType}/{metricName}",
-		logger.AttachLoggingToResponse(h.GetMetricDataHandle()))
-	r.Get("/value/{metricType}/{metricName}/",
-		logger.AttachLoggingToResponse(h.GetMetricDataHandle()))
-
-	http.ListenAndServe(address.String(), r)
+	http.ListenAndServe(address.String(), router)
 }
-
