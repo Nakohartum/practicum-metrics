@@ -94,7 +94,6 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 			http.Error(w, "error marshaling response data", http.StatusInternalServerError)
 			return
 		}
-		
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(responseData)
@@ -150,7 +149,7 @@ func (mh *MetricsHandler) GetMetricDataHandle() http.Handler{
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(strconv.FormatFloat(*metricData.Value, 'f', -1, 64)))
+		w.Write([]byte(metricData.Value))
 		
 	}
 	return http.HandlerFunc(fun)
