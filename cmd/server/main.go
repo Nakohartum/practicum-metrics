@@ -10,6 +10,7 @@ import (
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func main() {
@@ -21,6 +22,7 @@ func main() {
 	repo := repository.NewMemRepo(conf)
 	metricsService := service.NewMetricsService(repo)
 	metricsHandler := handler.NewMetricsHandler(metricsService)
+	router.Use(middleware.StripSlashes)
 
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", logger.AttachLoggingToResponse(metricsHandler.SetMetricDataHandle()))
 	router.Route("/", func(r chi.Router) {
