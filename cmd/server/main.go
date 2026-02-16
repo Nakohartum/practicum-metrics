@@ -24,11 +24,12 @@ func main() {
 	metricsHandler := handler.NewMetricsHandler(metricsService)
 	router.Use(middleware.StripSlashes)
 
+	
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", metricsHandler.ServePage)
-		r.Post("/update", logger.AttachLoggingToResponse(metricsHandler.UpdateMetricsDataHandle()))
-		
-		r.Route("/value", func(r chi.Router) {
+		r.Post("/update/", logger.AttachLoggingToResponse(metricsHandler.UpdateMetricsDataHandle()))
+		router.Post("/update/{metricType}/{metricName}/{metricValue}", logger.AttachLoggingToResponse(metricsHandler.SetMetricDataHandle()))
+		r.Route("/value/", func(r chi.Router) {
 			r.Post("/", logger.AttachLoggingToResponse(metricsHandler.GetMetricsByNameHandle()))
 		})
 	})
