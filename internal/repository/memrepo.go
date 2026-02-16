@@ -1,11 +1,11 @@
 package repository
 
-import config "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
+import models "github.com/Nakohartum/practicum-metrics/internal/model"
 
 type Storage interface {
-	GetData(string, string) (config.StringAnswer, error)
+	GetData(string, string) (models.Metrics, error)
 	SetData(string, string, string) error
-	GetAll() []config.StringAnswer
+	GetAll() []models.Metrics
 }
 
 type MemRepo struct {
@@ -18,7 +18,7 @@ func NewMemRepo(config Storage) *MemRepo {
 	}
 }
 
-func (mr *MemRepo) GetData(metricType, key string) (config.StringAnswer, error) {
+func (mr *MemRepo) GetData(metricType, key string) (models.Metrics, error) {
 	return mr.storage.GetData(metricType, key)
 }
 
@@ -26,6 +26,6 @@ func (mr *MemRepo) SetData(metricType, key, value string) error {
 	return mr.storage.SetData(metricType, key, value)
 }
 
-func (mr *MemRepo) GetAll() []config.StringAnswer{
+func (mr *MemRepo) GetAll() []models.Metrics {
 	return mr.storage.GetAll()
 }
