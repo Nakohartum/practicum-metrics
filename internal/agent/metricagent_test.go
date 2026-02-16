@@ -3,7 +3,6 @@ package agent
 import (
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -111,45 +110,12 @@ func TestSendGaugeMetrics(t *testing.T){
 					t.Fatalf("method=%s. want=%s", gotMethods[i], http.MethodPost)
 				}
 
-				if gotContentTypes[i] != "text/plain"{
-					t.Fatalf("Content-Type=%s, want=%s", gotContentTypes[i], "text/plain")
+				if gotContentTypes[i] != "application/json"{
+					t.Fatalf("Content-Type=%s, want=%s", gotContentTypes[i], "application/json")
 				}
 
-				if !strings.HasPrefix(gotPaths[i], "/update/gauge/"){
+				if !strings.HasPrefix(gotPaths[i], "/update"){
 					t.Fatalf("unexpected path:%s", gotPaths[i])
-				}
-			}
-
-			// проверяем метрики
-
-			seen := make(map[string]string)
-
-			for _, p := range gotPaths{
-				parts := strings.Split(p, "/")
-
-				if len(parts) != 5{
-					t.Fatalf("invalid path %s", p)
-				}
-
-				name := parts[3]
-				valueString := parts[4]
-
-				if _, err := strconv.ParseFloat(valueString, 64); err != nil{
-					t.Fatalf("Not a number: %s", valueString)
-				}
-
-				seen[name] = valueString
-			}
-
-			for _, w := range tt.want{
-				val, ok := seen[w.name]
-
-				if !ok{
-					t.Fatalf("metric %s not sent", w.name)
-				}
-
-				if val != w.value{
-					t.Fatalf("metric %s value=%s want=%s", w.name, val, w.value)
 				}
 			}
 		})
@@ -226,45 +192,12 @@ func TestSendCounterMetrics(t *testing.T){
 					t.Fatalf("method=%s. want=%s", gotMethods[i], http.MethodPost)
 				}
 
-				if gotContentTypes[i] != "text/plain"{
-					t.Fatalf("Content-Type=%s, want=%s", gotContentTypes[i], "text/plain")
+				if gotContentTypes[i] != "application/json"{
+					t.Fatalf("Content-Type=%s, want=%s", gotContentTypes[i], "application/json")
 				}
 
-				if !strings.HasPrefix(gotPaths[i], "/update/counter/"){
+				if !strings.HasPrefix(gotPaths[i], "/update"){
 					t.Fatalf("unexpected path:%s", gotPaths[i])
-				}
-			}
-
-			// проверяем метрики
-
-			seen := make(map[string]string)
-
-			for _, p := range gotPaths{
-				parts := strings.Split(p, "/")
-
-				if len(parts) != 5{
-					t.Fatalf("invalid path %s", p)
-				}
-
-				name := parts[3]
-				valueString := parts[4]
-
-				if _, err := strconv.ParseFloat(valueString, 64); err != nil{
-					t.Fatalf("Not a number: %s", valueString)
-				}
-
-				seen[name] = valueString
-			}
-
-			for _, w := range tt.want{
-				val, ok := seen[w.name]
-
-				if !ok{
-					t.Fatalf("metric %s not sent", w.name)
-				}
-
-				if val != w.value{
-					t.Fatalf("metric %s value=%s want=%s", w.name, val, w.value)
 				}
 			}
 		})

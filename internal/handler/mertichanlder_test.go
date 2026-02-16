@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -211,6 +212,96 @@ func TestServePage(t *testing.T){
 			if tt.contentType != ""{
 				require.Equal(t, tt.contentType, resp.Header.Get("Content-Type"))
 			}
+
+			require.Equal(t, tt.statusCode, resp.StatusCode)
+		})
+	}
+}
+
+func TestUpdateMetricsDataHandler(t *testing.T){
+	repo := repository.NewMemRepo(config.NewMemStubStorage())
+	ms := service.NewMetricsService(repo)
+	mh := NewMetricsHandler(ms)
+
+	r := chi.NewRouter()
+
+	r.Post("/update", func(w http.ResponseWriter, r *http.Request) {mh.UpdateMetricsDataHandle().ServeHTTP(w, r)})
+
+	server := httptest.NewServer(r)
+
+	tests := []struct{
+		name string
+		statusCode int
+		body string
+	} {
+		{
+			name: "positive test #1",
+			statusCode: http.StatusCreated,
+			body: `{"id":"cpu","type":"gauge","value":0.75}`,
+		},
+		{
+			name: "positive test #2",
+			statusCode: http.StatusCreated,
+			body: `{"id":"cpu","type":"counter","delta":1}`,
+		},
+		{
+			name: "no metric's name",
+			statusCode: http.StatusBadRequest,
+			body: `{"type":"gauge","value":0.75}`,
+		},
+		{
+			name: "no metric's type",
+			statusCode: http.StatusBadRequest,
+			body: `{"id":"cpu","value":0.75}`,
+		},
+	}
+
+	for _, tt := range tests{
+		t.Run(tt.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodPost, server.URL + "/update", bytes.NewBufferString(tt.body))
+			require.NoError(t, err)
+			defer request.Body.Close()
+
+			resp, err := server.Client().Do(request)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, tt.statusCode, resp.StatusCode)
+		})
+	}
+}
+
+func TestGetMetricsByName(t *testing.T){
+	repo := repository.NewMemRepo(config.NewMemStubStorage())
+	ms := service.NewMetricsService(repo)
+	mh := NewMetricsHandler(ms)
+	mh.service.SetData("gauge", "cpu", "1.1")
+	mh.service.SetData("counter", "cpu", "1")
+	r := chi.NewRouter()
+	r.Post("/value", func(w http.ResponseWriter, r *http.Request) {mh.GetMetricsByNameHandle().ServeHTTP(w, r)})
+	server := httptest.NewServer(r)
+
+	tests := []struct{
+		name string
+		statusCode int
+		body string
+	}{
+		{
+			name: "positive test #1",
+			statusCode: http.StatusOK,
+			body: `{"id":"cpu","type":"gauge","value":1.1}`,
+		},
+	}
+
+	for _, tt := range tests{
+		t.Run(tt.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodPost, server.URL + "/value", bytes.NewBufferString(tt.body))
+			require.NoError(t, err)
+			defer request.Body.Close()
+
+			resp, err := server.Client().Do(request)
+			require.NoError(t, err)
+			defer resp.Body.Close()
 
 			require.Equal(t, tt.statusCode, resp.StatusCode)
 		})

@@ -1,13 +1,14 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"runtime"
-	"strconv"
 	"time"
 
 	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -25,7 +26,7 @@ func NewAgentMetrics(pollInterval, reportInterval int) *MetricsAgent {
 		ReportInterval: time.Duration(reportInterval * int(time.Second)),
 		gaugeMetrics:   make(map[string]float64),
 		counterMetrics: make(map[string]int64),
-		client: resty.New().SetHeader("Content-Type", "text/plain"),
+		client: resty.New().SetHeader("Content-Type", "application/json"),
 	}
 	internalLogger.AttachLoggingToRequest(agent.client)
 	return &agent
@@ -77,9 +78,21 @@ func (mA *MetricsAgent) setCounterMetrics() {
 
 func (mA *MetricsAgent) sendGaugeMetrics(path string){
 	for k, v := range mA.gaugeMetrics{
-		endpoint := fmt.Sprintf("%s/update/gauge/%s/%s", path, k, strconv.FormatFloat(v, 'f', -1, 64))
+		endpoint := fmt.Sprintf("%s/update", path)
+
+		metric := models.Metrics{
+			ID: k,
+			MType: "gauge",
+			Value: &v,
+		}
+
+		jsonData, err := json.Marshal(metric)
+
+		if err != nil {
+			panic(err)
+		}
 		
-		resp, err := mA.client.R().Post(endpoint)
+		resp, err := mA.client.R().SetBody(jsonData).Post(endpoint)
 
 		if err != nil {
 			panic(err)
@@ -91,9 +104,22 @@ func (mA *MetricsAgent) sendGaugeMetrics(path string){
 
 func (mA *MetricsAgent) sendCounterMetrics(path string){
 	for k, v := range mA.counterMetrics{
-		endpoint := fmt.Sprintf("%s/update/counter/%s/%s", path, k, strconv.FormatInt(v, 10))
+		endpoint := fmt.Sprintf("%s/update", path)
+
+		metric := models.Metrics{
+			ID: k,
+			MType: "counter",
+			Delta: &v,
+		}
+
+		jsonData, err := json.Marshal(metric)
+
+		if err != nil {
+			panic(err)
+		}
 		
-		resp, err := mA.client.R().Post(endpoint)
+		
+		resp, err := mA.client.R().SetBody(jsonData).Post(endpoint)
 
 		if err != nil {
 			panic(err)
