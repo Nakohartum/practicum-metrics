@@ -24,6 +24,8 @@ func main() {
 	metricsHandler := handler.NewMetricsHandler(metricsService)
 
 	router.Use(middleware.StripSlashes)
+	router.Use(handler.GetZippedDataMiddleware)
+	router.Use(handler.GiveZippedDataMiddleware)
 	
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", metricsHandler.ServePage)
