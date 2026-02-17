@@ -1,12 +1,15 @@
 package agent
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"runtime"
 	"time"
+
 	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/go-resty/resty/v2"
@@ -85,8 +88,23 @@ func (mA *MetricsAgent) sendGaugeMetrics(path string){
 			MType: "gauge",
 			Value: &v,
 		}
+
+		jsonData, err := json.Marshal(metric)
+
+		if err != nil {
+			log.Println(err)
+		}
+
+		compressedData, err := compressData(jsonData)
+
+		if err != nil {
+			log.Println(err)
+		}
 		
-		resp, err := mA.client.R().SetBody(metric).Post(endpoint)
+		resp, err := mA.client.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetBody(compressedData).Post(endpoint)
 
 		if err != nil {
 			log.Println(err)
@@ -112,8 +130,17 @@ func (mA *MetricsAgent) sendCounterMetrics(path string){
 			panic(err)
 		}
 		
-		
-		resp, err := mA.client.R().SetBody(jsonData).Post(endpoint)
+		compressedData, err := compressData(jsonData)
+
+		if err != nil {
+			panic(err)
+		}
+
+
+		resp, err := mA.client.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetBody(compressedData).Post(endpoint)
 
 		if err != nil {
 			panic(err)
@@ -146,3 +173,18 @@ func (mA *MetricsAgent) Run(host string) {
 	}
 }
 
+func compressData(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+
+	gz := gzip.NewWriter(&buf)
+
+	if _, err := gz.Write(data); err != nil {
+		return nil, err
+	}
+
+	if err := gz.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}

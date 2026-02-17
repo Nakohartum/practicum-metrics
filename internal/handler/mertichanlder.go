@@ -25,6 +25,8 @@ func NewMetricsHandler(s *service.MetricsService) *MetricsHandler {
 	}
 }
 
+
+
 func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		var metric models.Metrics
