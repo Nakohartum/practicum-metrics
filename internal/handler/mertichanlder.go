@@ -90,11 +90,6 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 			return
 		}
 
-		if err != nil {
-			http.Error(w, "error preparing response data", http.StatusInternalServerError)
-			return
-		}
-
 		responseData, err := json.Marshal(metricData)
 		if err != nil {
 			http.Error(w, "error marshaling response data", http.StatusInternalServerError)
