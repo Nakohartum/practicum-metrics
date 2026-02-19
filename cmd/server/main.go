@@ -64,6 +64,6 @@ func main() {
 			r.Get("/{metricType}/{metricName}", logger.AttachLoggingToResponse(metricsHandler.GetMetricDataHandle()))
 		})
 	})
-	fileService.RunSaving()
+	go fileService.RunSaving()
 	http.ListenAndServe(address.String(), router)
 }
