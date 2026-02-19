@@ -17,7 +17,12 @@ import (
 
 func TestSetMetricDataHandle(t *testing.T) {
 
-	repo := repository.NewMemRepo(config.NewMemStubStorage())
+	fileReader, err := config.NewFileReader("test.json")
+	require.NoError(t, err)
+	fileWriter, err := config.NewFileWriter("test.json")
+	require.NoError(t, err)
+	fileWorker := config.NewFileManager(fileReader, fileWriter)
+	repo := repository.NewMemRepo(config.NewMemStubStorage(), fileWorker)
 	ms := service.NewMetricsService(repo)
 	mh := NewMetricsHandler(ms)
 
@@ -84,7 +89,12 @@ func TestSetMetricDataHandle(t *testing.T) {
 }
 
 func TestGetMetricDataHandle(t *testing.T){
-	repo := repository.NewMemRepo(config.NewMemStubStorage())
+	fileReader, err := config.NewFileReader("test.json")
+	require.NoError(t, err)
+	fileWriter, err := config.NewFileWriter("test.json")
+	require.NoError(t, err)
+	fileWorker := config.NewFileManager(fileReader, fileWriter)
+	repo := repository.NewMemRepo(config.NewMemStubStorage(), fileWorker)
 	repo.SetData("counter", "cpu", "1")
 	repo.SetData("gauge", "cpu", "1.5")
 	ms := service.NewMetricsService(repo)
@@ -167,7 +177,12 @@ func TestGetMetricDataHandle(t *testing.T){
 
 
 func TestServePage(t *testing.T){
-	repo := repository.NewMemRepo(config.NewMemStubStorage())
+	fileReader, err := config.NewFileReader("test.json")
+	require.NoError(t, err)
+	fileWriter, err := config.NewFileWriter("test.json")
+	require.NoError(t, err)
+	fileWorker := config.NewFileManager(fileReader, fileWriter)
+	repo := repository.NewMemRepo(config.NewMemStubStorage(), fileWorker)
 	ms := service.NewMetricsService(repo)
 	mh := NewMetricsHandler(ms)
 
@@ -219,7 +234,12 @@ func TestServePage(t *testing.T){
 }
 
 func TestUpdateMetricsDataHandler(t *testing.T){
-	repo := repository.NewMemRepo(config.NewMemStubStorage())
+	fileReader, err := config.NewFileReader("test.json")
+	require.NoError(t, err)
+	fileWriter, err := config.NewFileWriter("test.json")
+	require.NoError(t, err)
+	fileWorker := config.NewFileManager(fileReader, fileWriter)
+	repo := repository.NewMemRepo(config.NewMemStubStorage(), fileWorker)
 	ms := service.NewMetricsService(repo)
 	mh := NewMetricsHandler(ms)
 
@@ -272,7 +292,12 @@ func TestUpdateMetricsDataHandler(t *testing.T){
 }
 
 func TestGetMetricsByName(t *testing.T){
-	repo := repository.NewMemRepo(config.NewMemStubStorage())
+	fileReader, err := config.NewFileReader("test.json")
+	require.NoError(t, err)
+	fileWriter, err := config.NewFileWriter("test.json")
+	require.NoError(t, err)
+	fileWorker := config.NewFileManager(fileReader, fileWriter)
+	repo := repository.NewMemRepo(config.NewMemStubStorage(), fileWorker)
 	ms := service.NewMetricsService(repo)
 	mh := NewMetricsHandler(ms)
 	mh.service.SetData("gauge", "cpu", "1.1")

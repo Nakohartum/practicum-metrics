@@ -3,7 +3,7 @@ package service
 import (
 	"errors"
 
-	config "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 )
 
@@ -17,9 +17,9 @@ func NewMetricsService(r *repository.MemRepo) *MetricsService {
 	}
 }
 
-func (s *MetricsService) GetData(metricType, metricKey string) (config.StringAnswer, error) {
+func (s *MetricsService) GetData(metricType, metricKey string) (models.Metrics, error) {
 	if metricKey == "" {
-		return config.StringAnswer{}, errors.New("no metric's name")
+		return models.Metrics{}, errors.New("no metric's name")
 	}
 	return s.repo.GetData(metricType, metricKey)
 	
@@ -29,6 +29,6 @@ func (s *MetricsService) SetData(metricType, metricKey, metricValue string) erro
 	return s.repo.SetData(metricType, metricKey, metricValue)
 }
 
-func (s *MetricsService) GetAll() []config.StringAnswer{
+func (s *MetricsService) GetAll() []models.Metrics{
 	return s.repo.GetAll()
 }

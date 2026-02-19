@@ -3,12 +3,9 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
-
-	config "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
@@ -93,13 +90,12 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 			return
 		}
 
-		resMetrics, err := makeMetricsResult(metricToSearch.MType, metricData)
 		if err != nil {
 			http.Error(w, "error preparing response data", http.StatusInternalServerError)
 			return
 		}
 
-		responseData, err := json.Marshal(resMetrics)
+		responseData, err := json.Marshal(metricData)
 		if err != nil {
 			http.Error(w, "error marshaling response data", http.StatusInternalServerError)
 			return
@@ -113,33 +109,6 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 	return http.HandlerFunc(fun)
 }
 
-func makeMetricsResult(metricType string, metricData config.StringAnswer) (models.Metrics, error) {
-	var resMetrics = models.Metrics{}
-	switch metricType{
-			case models.Counter:
-				delta, err := strconv.ParseInt(metricData.Value, 10, 64)
-				if err != nil {
-					return models.Metrics{}, fmt.Errorf("error parsing counter value")
-				}
-				resMetrics = models.Metrics{
-					ID: metricData.Name,
-					MType: metricData.Type,
-					Delta: &delta,
-				}
-			case models.Gauge:
-				value, err := strconv.ParseFloat(metricData.Value, 64)
-				if err != nil {
-					return models.Metrics{}, fmt.Errorf("error parsing gauge value")
-					
-				}
-				resMetrics = models.Metrics{
-					ID: metricData.Name,
-					MType: metricData.Type,
-					Value: &value,
-				}
-		}
-	return resMetrics, nil
-}
 
 func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
@@ -188,7 +157,13 @@ func (mh *MetricsHandler) GetMetricDataHandle() http.Handler{
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(metricData.Value))
+		
+		switch metricType{
+		case models.Counter:
+			w.Write([]byte(strconv.FormatInt(*metricData.Delta, 10)))
+		case models.Gauge:
+			w.Write([]byte(strconv.FormatFloat(*metricData.Value, 'f', -1, 64)))
+		}
 		
 	}
 	return http.HandlerFunc(fun)
@@ -258,5 +233,4 @@ func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
 	}
-
 }
