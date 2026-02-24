@@ -39,3 +39,13 @@ func (fs *FileService) RunSaving(){
 		}
 	}
 }
+
+func (fs *FileService) SaveData() error {
+	data := fs.repo.GetAll()
+	err := fs.WriteData(data)
+	if err != nil {
+		log.Fatalf("Error writing data: %v", err)
+		return err
+	}
+	return nil
+}

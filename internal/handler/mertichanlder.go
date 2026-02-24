@@ -62,6 +62,7 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 			}
 			mh.service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
 		}
+		
 		w.WriteHeader(http.StatusOK)
 	}
 	return http.HandlerFunc(fun)

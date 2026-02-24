@@ -110,3 +110,32 @@ func GiveZippedDataMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(cw, r)
 	})
 }
+
+type statusWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *statusWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+type fileSaver interface {
+	SaveData() error
+}
+
+func SaveAfterPostMiddleware(saver fileSaver) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost {
+				sw := &statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
+				next.ServeHTTP(sw, r)
+				if sw.statusCode < 400 {
+					_ = saver.SaveData()
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}

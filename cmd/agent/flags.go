@@ -7,6 +7,13 @@ import (
 	"strconv"
 	"strings"
 )
+
+type Config struct {
+    address Address
+    reportInterval int64
+    pollInterval int64
+}
+
 type Address struct {
 	host string `env:"ADDRESS"`
 }
@@ -39,29 +46,31 @@ func (a *Address) Set(value string) error {
 	return nil
 }
 
-var reportInterval int64
-var pollInterval int64
-var address = Address{host: "localhost:8080"}
+var configData = Config{
+    address: Address{host: "localhost:8080"},
+    reportInterval: 10,
+    pollInterval: 2,
+}
 
 func parseFlags() {
-    flag.Var(&address, "a", "server address (host:port)")
-    flag.Int64Var(&reportInterval, "r", 10, "report interval")
-    flag.Int64Var(&pollInterval, "p", 2, "poll interval")
+    flag.Var(&configData.address, "a", "server address (host:port)")
+    flag.Int64Var(&configData.reportInterval, "r", 10, "report interval")
+    flag.Int64Var(&configData.pollInterval, "p", 2, "poll interval")
     flag.Parse() 
 
     
     if v, ok := os.LookupEnv("ADDRESS"); ok {
-        _ = address.Set(v)
+        _ = configData.address.Set(v)
     }
 
     if v, ok := os.LookupEnv("REPORT_INTERVAL"); ok {
         if intVal, err := strconv.ParseInt(v, 10, 64); err == nil {
-            reportInterval = intVal
+            configData.reportInterval = intVal
         }
     }
     if v, ok := os.LookupEnv("POLL_INTERVAL"); ok {
         if intVal, err := strconv.ParseInt(v, 10, 64); err == nil {
-            pollInterval = intVal
+            configData.pollInterval = intVal
         }
     }
 }
