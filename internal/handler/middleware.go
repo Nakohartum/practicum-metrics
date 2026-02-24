@@ -1,0 +1,141 @@
+package handler
+
+import (
+	"compress/gzip"
+	"io"
+	"net/http"
+	"strings"
+)
+
+type gZipWriter struct {
+	http.ResponseWriter
+	zw *gzip.Writer
+	gzipEnabled bool
+	wroteHeader bool
+}
+
+func newGzipWriter(w http.ResponseWriter) *gZipWriter {
+	return &gZipWriter{ResponseWriter: w}
+}
+
+func (w *gZipWriter) Write(b []byte) (int, error) {
+    if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	if w.gzipEnabled && w.zw != nil {
+		return w.zw.Write(b)
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *gZipWriter) WriteHeader(statusCode int) {
+	if w.wroteHeader {
+		return
+	}
+	w.wroteHeader = true
+
+	if strings.Contains(w.Header().Get("Content-Type"), "application/json") || strings.Contains(w.Header().Get("Content-Type"), "text/html"){
+		w.gzipEnabled = true
+		w.Header().Set("Content-Encoding", "gzip")
+		w.zw = gzip.NewWriter(w.ResponseWriter)
+	}
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (w *gZipWriter) Close() error {
+	if w.gzipEnabled && w.zw != nil {
+		return w.zw.Close()
+	}
+	return nil
+}
+
+type gZipReader struct {
+	r io.ReadCloser
+	zr *gzip.Reader
+}
+
+func newGZipReader(r io.ReadCloser) (*gZipReader, error) {
+	zr, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, err
+	}
+	return &gZipReader{r: r, zr: zr}, nil
+}
+
+func (gr *gZipReader) Read(p []byte) (int, error) {
+	return gr.zr.Read(p)
+}
+
+func (gr *gZipReader) Close() error {
+	err := gr.zr.Close()
+	if err != nil {
+		return err
+	}
+	return gr.r.Close()
+}
+
+func GetZippedDataMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return 
+		}
+		cw, err := newGZipReader(r.Body)
+
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return 
+		}
+
+		r.Body = cw
+		defer cw.Close()
+		r.Header.Del("Content-Encoding")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func GiveZippedDataMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return 
+		}
+
+		cw := newGzipWriter(w)
+
+		defer cw.Close()
+
+		next.ServeHTTP(cw, r)
+	})
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *statusWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+type fileSaver interface {
+	SaveData() error
+}
+
+func SaveAfterPostMiddleware(saver fileSaver) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost {
+				sw := &statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
+				next.ServeHTTP(sw, r)
+				if sw.statusCode < 400 {
+					_ = saver.SaveData()
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
