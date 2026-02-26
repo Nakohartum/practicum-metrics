@@ -11,6 +11,11 @@ import (
 type Config struct {
 	Address Address
 	FileWork FileWork
+	DatabaseAddress DatabaseAddress
+}
+
+type DatabaseAddress struct {
+	connectionString string `env:"DATABASE_DSN"`
 }
 
 type Address struct{
@@ -47,6 +52,9 @@ var configData = Config{
 		fileStoragePath: "file.json",
 		restore: false,
 	},
+	DatabaseAddress: DatabaseAddress{
+		connectionString: "",
+	},
 }
 
 func parseFlags() {
@@ -55,6 +63,7 @@ func parseFlags() {
 	flag.Int64Var(&configData.FileWork.storeInterval, "i", 2, "store interval in seconds")
 	flag.StringVar(&configData.FileWork.fileStoragePath, "f", "file.json", "path to store data")
 	flag.BoolVar(&configData.FileWork.restore, "r", false, "true for restore, false for not")
+	flag.StringVar(&configData.DatabaseAddress.connectionString, "d", "", "connection string for database")
 	flag.Parse()
 
 	
@@ -80,5 +89,9 @@ func parseFlags() {
 			fmt.Printf("bad restore value %q, want boolean: %v\n", v, err)
 		}
 		configData.FileWork.restore = res
+	}
+
+	if v, ok := os.LookupEnv("DATABASE_DSN"); ok && v != "" {
+		configData.DatabaseAddress.connectionString = v
 	}
 }

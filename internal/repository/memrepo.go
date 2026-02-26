@@ -4,17 +4,6 @@ import (
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
-type Storage interface {
-	GetData(string, string) (models.Metrics, error)
-	SetData(string, string, string) error
-	GetAll() []models.Metrics
-}
-
-type FileWorker interface {
-	WriteData (data []models.Metrics) error
-	ReadData() ([]models.Metrics, error)
-}
-
 type MemRepo struct {
 	storage Storage
 	fileWorker FileWorker

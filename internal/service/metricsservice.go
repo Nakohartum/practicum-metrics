@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
@@ -9,11 +10,13 @@ import (
 
 type MetricsService struct {
 	repo *repository.MemRepo
+	databaseRepo *repository.DatabaseRepository
 }
 
-func NewMetricsService(r *repository.MemRepo) *MetricsService {
+func NewMetricsService(r *repository.MemRepo, d *repository.DatabaseRepository) *MetricsService {
 	return &MetricsService{
 		repo: r,
+		databaseRepo: d,
 	}
 }
 
@@ -31,4 +34,8 @@ func (s *MetricsService) SetData(metricType, metricKey, metricValue string) erro
 
 func (s *MetricsService) GetAll() []models.Metrics{
 	return s.repo.GetAll()
+}
+
+func (s *MetricsService) Ping() error {
+	return s.databaseRepo.Ping(context.Background())
 }

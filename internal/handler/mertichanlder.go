@@ -230,3 +230,21 @@ func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+
+func (mh *MetricsHandler) Ping() http.Handler{
+	fun := func (w http.ResponseWriter, r *http.Request)  {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		
+		err := mh.service.Ping()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}
+	return http.HandlerFunc(fun)
+}
