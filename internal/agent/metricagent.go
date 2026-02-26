@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -21,6 +22,7 @@ type MetricsAgent struct {
 	gaugeMetrics   map[string]float64
 	counterMetrics map[string]int64
 	client *resty.Client
+	sleep func(time.Duration)
 }
 
 func NewAgentMetrics(pollInterval, reportInterval int) *MetricsAgent {
@@ -127,13 +129,13 @@ func (mA *MetricsAgent) sendCounterMetrics(path string){
 		jsonData, err := json.Marshal(metric)
 
 		if err != nil {
-			panic(err)
+			log.Println(err)
 		}
 		
 		compressedData, err := compressData(jsonData)
 
 		if err != nil {
-			panic(err)
+			log.Println(err)
 		}
 
 
@@ -143,7 +145,7 @@ func (mA *MetricsAgent) sendCounterMetrics(path string){
 		SetBody(compressedData).Post(endpoint)
 
 		if err != nil {
-			panic(err)
+			log.Println(err)
 		}
 
 		fmt.Print(resp)
@@ -155,21 +157,29 @@ func (mA *MetricsAgent) sendMetrics(path string) {
 	mA.sendCounterMetrics(path)
 }
 
-func (mA *MetricsAgent) Run(host string) {
+func (mA *MetricsAgent) Run(ctx context.Context, host string) {
+	if mA.sleep == nil {
+		mA.sleep = time.Sleep
+	}
 	elapsed := time.Duration(0)
 	endpoint := host
 
 
 	for {
+		select{
+		case <- ctx.Done():
+			return
+		default:
+		}
 		mA.setRuntimeGaugeMetrics()
 		elapsed += mA.PollInterval
 
 		if elapsed >= mA.ReportInterval {
 			mA.setCounterMetrics()
 			mA.sendMetrics(endpoint)
-			elapsed = time.Duration(0)
+			elapsed = 0
 		}
-		time.Sleep(mA.PollInterval)
+		mA.sleep(mA.PollInterval)
 	}
 }
 

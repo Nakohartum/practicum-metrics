@@ -134,6 +134,7 @@ func SaveAfterPostMiddleware(saver fileSaver) func(http.Handler) http.Handler {
 				if sw.statusCode < 400 {
 					_ = saver.SaveData()
 				}
+				return
 			}
 			next.ServeHTTP(w, r)
 		})

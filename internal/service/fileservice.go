@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -28,9 +29,14 @@ func (fs *FileService) ReadData() ([]models.Metrics, error) {
 	return fs.repo.ReadData()
 }
 
-func (fs *FileService) RunSaving(){
+func (fs *FileService) RunSaving(ctx context.Context){
 	
 	for {
+		select{
+		case <-ctx.Done():
+			return
+		default:
+		}
 		time.Sleep(fs.storeInterval)
 		data := fs.repo.GetAll()
 		err := fs.WriteData(data)

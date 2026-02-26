@@ -139,7 +139,7 @@ func setupServer(repo *repository.MemRepo, dbRepo *repository.DatabaseRepository
 	})
 
 	if configData.FileWork.storeInterval != 0 {
-		go fileService.RunSaving()
+		go fileService.RunSaving(context.Background())
 	}
 
 	return http.Server{
