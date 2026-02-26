@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	noConnectionToCloseError = errors.New("No connection to close")
+	errNoConnectionToClose = errors.New("no connection to close")
 )
 
 type PgDatabaseAdapter struct {
@@ -34,7 +34,7 @@ func (dbAdapter *PgDatabaseAdapter) Open(ctx context.Context) error{
 
 func (dbAdapter *PgDatabaseAdapter) Close(ctx context.Context) error{
 	if dbAdapter.db == nil {
-		return noConnectionToCloseError
+		return errNoConnectionToClose
 	}
 	err := dbAdapter.db.Close(ctx)
 	return err
