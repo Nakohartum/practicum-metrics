@@ -55,25 +55,12 @@ func (fs *FileService) GetAll() []models.Metrics {
 
 func (fs *FileService) SetData(metricType, metricKey, metricValue string) error {
 	var model models.Metrics
-	model.ID = metricKey
-	model.MType = metricType
 	fs.memRepo.SetData(metricType, metricKey, metricValue)
-	switch metricType {
-	case models.Counter:
-		val, err := strconv.ParseInt(metricValue, 10, 64)
-		if err != nil {
-			return err
-		}
-		model.Delta = &val
-	case models.Gauge:
-		val, err := strconv.ParseFloat(metricValue, 64)
-		if err != nil {
-			return err
-		}
-		model.Value = &val
-	default:
-		return errors.New("no metric type")
+	model, err := fs.memRepo.GetData(metricType, metricKey)
+	if err != nil {
+		return err
 	}
+	
 	return fs.repo.WriteOneData(model)
 }
 

@@ -38,6 +38,13 @@ func (fw *FileWriter) WriteData (data []models.Metrics) error {
 
 func (fw *FileWriter) WriteOneData (models []models.Metrics, data models.Metrics) error {
 	models = append(models, data)
+	for _, v := range models {
+		if v.MType == data.MType && v.ID == data.ID{
+			val := *v.Delta + *data.Delta
+			v.Delta = &val
+			v.Value = data.Value
+		}
+	}
 	return fw.WriteData(models)
 }
 
