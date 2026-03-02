@@ -43,7 +43,6 @@ func (fw *FileWriter) WriteOneData (models []models.Metrics, data models.Metrics
 
 type FileReader struct {
 	file *os.File
-	decoder *json.Decoder
 }
 
 func NewFileReader(filename string) (*FileReader, error) {
@@ -54,21 +53,23 @@ func NewFileReader(filename string) (*FileReader, error) {
 	}
 	return &FileReader{
 		file: file,
-		decoder: json.NewDecoder(file),
 	}, nil
 }
 
 func (fr *FileReader) ReadData() ([]models.Metrics, error) {
-	fr.file.Seek(0, 0)
-	var data []models.Metrics
-	err := fr.decoder.Decode(&data)
-	if err != nil{
-		if errors.Is(err, io.EOF){
-			return make([]models.Metrics, 0), nil
-		}
-		return nil, err
-	}
-	return data, err
+	 if _, err := fr.file.Seek(0, 0); err != nil {
+        return nil, err
+    }
+
+    var data []models.Metrics
+    dec := json.NewDecoder(fr.file) 
+    if err := dec.Decode(&data); err != nil {
+        if errors.Is(err, io.EOF) {
+            return []models.Metrics{}, nil
+        }
+        return nil, err
+    }
+    return data, nil
 }
 
 type FileManager struct{
