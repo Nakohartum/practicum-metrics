@@ -40,9 +40,7 @@ func (fw *FileWriter) WriteOneData (models []models.Metrics, data models.Metrics
 	models = append(models, data)
 	for i := range models {
 		if models[i].MType == data.MType && models[i].ID == data.ID{
-			val := *models[i].Delta + *data.Delta
-			models[i].Delta = &val
-			models[i].Value = data.Value
+			models[i] = data
 		}
 	}
 	return fw.WriteData(models)
