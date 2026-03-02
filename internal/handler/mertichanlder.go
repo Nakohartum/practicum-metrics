@@ -146,6 +146,7 @@ func (mh *MetricsHandler) GetMetricDataHandle() http.Handler{
 
 		if metricName == "" || metricType == "" {
 			http.Error(w, "no metric found", http.StatusNotFound)
+			return 
 		}
 
 		metricData, err := mh.service.GetData(metricType, metricName)
