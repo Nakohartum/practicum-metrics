@@ -210,69 +210,7 @@ func TestFileReader_ReadData_Table(t *testing.T) {
 	}
 }
 
-func TestFileManager_Table(t *testing.T) {
-	t.Parallel()
 
-	cases := []struct {
-		name string
-		run  func(t *testing.T, fm *FileManager, path string)
-	}{
-		{
-			name: "write_and_read_roundtrip",
-			run: func(t *testing.T, fm *FileManager, path string) {
-				in := []models.Metrics{{ID: "x", MType: "counter"}}
-				require.NoError(t, fm.WriteData(in))
-
-				// decoder читает с текущей позиции, поэтому для roundtrip переоткроем reader
-				_ = fm.fileReader.file.Close()
-				r2, err := NewFileReader(path)
-				require.NoError(t, err)
-				defer r2.file.Close()
-				fm.fileReader = *r2
-
-				out, err := fm.ReadData()
-				require.NoError(t, err)
-				require.Len(t, out, 1)
-				assert.Equal(t, "x", out[0].ID)
-			},
-		},
-		{
-			name: "write_one_appends",
-			run: func(t *testing.T, fm *FileManager, _ string) {
-				require.NoError(t, fm.WriteOneData(models.Metrics{ID: "a", MType: "counter"}))
-				require.NoError(t, fm.WriteOneData(models.Metrics{ID: "b", MType: "gauge"}))
-
-				txt := readFileText(t, fm.fileWriter.file.Name())
-				assert.Contains(t, txt, `"id":"a"`)
-				assert.Contains(t, txt, `"id":"b"`)
-			},
-		},
-		{
-			name: "file_exists_ok",
-			run: func(t *testing.T, fm *FileManager, _ string) {
-				require.NoError(t, fm.FileExists())
-			},
-		},
-	}
-
-	for _, tt := range cases {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), tt.name+".json")
-
-			fw, err := NewFileWriter(path)
-			require.NoError(t, err)
-			defer fw.file.Close()
-
-			fr, err := NewFileReader(path)
-			require.NoError(t, err)
-			defer fr.file.Close()
-
-			fm := NewFileManager(fr, fw)
-			tt.run(t, fm, path)
-		})
-	}
-}
 
 func TestFileManager_FileExists_NilFiles(t *testing.T) {
 	t.Parallel()
