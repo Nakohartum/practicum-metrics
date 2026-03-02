@@ -9,8 +9,10 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-	config "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
-	db "github.com/Nakohartum/practicum-metrics/internal/config/db"
+
+	mConfig "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
+	dbConfig "github.com/Nakohartum/practicum-metrics/internal/config/db"
+	fConfig "github.com/Nakohartum/practicum-metrics/internal/config/filestorage"
 	"github.com/Nakohartum/practicum-metrics/internal/handler"
 	"github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
@@ -22,17 +24,18 @@ import (
 
 func main() {
 	parseFlags()
-	conf := setupMemStorage()
-	dbAdapter := setupDatabaseAdapter(configData.DatabaseAddress.connectionString)
-	err := dbAdapter.Open(context.Background())
-	defer dbAdapter.Close(context.Background())
-	if err != nil {
-		log.Println(err)
-	}
-	dbRepo := setupPostgreSQLConnection(dbAdapter)
-	fileService, repo := setupFileService(conf)
-	server := setupServer(repo, dbRepo, fileService)
+	memRepo := setupMemRepo()
+	var service service.Service = setupMemService(memRepo)
 
+	if configData.FileWork.fileStoragePath != ""{
+		service = setupFileService(memRepo)
+	}
+
+	if configData.DatabaseAddress.connectionString != ""{
+		service = setupDatabaseService(memRepo)
+	}
+
+	server := setupServer(service)
 	go func() {
 		log.Println("Server started")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -48,7 +51,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
 	defer cancel()
 	
-	err = fileService.SaveData()
+	err := service.SaveDataAfterExit(ctx)
 
 	if err != nil {
 		log.Println(err)
@@ -61,75 +64,80 @@ func main() {
 	log.Println("Server shut down")
 }
 
+func setupMemRepo() *repository.MemRepo {
+	model := models.NewStorageModel()
+	config := mConfig.NewMemStorage(model)
+	repo := repository.NewMemRepo(config)
+	return repo
+}
 
-func setupRouter(fileService *service.FileService) *chi.Mux {
+func setupMemService(repo *repository.MemRepo) *service.MetricsService {
+	service := service.NewMetricsService(repo, int(configData.FileWork.storeInterval))
+	return service
+}
+
+func setupDatabaseService(memRepo *repository.MemRepo) *service.DatabaseService {
+	dbAdapter := dbConfig.NewPgDatabaseAdapter(configData.DatabaseAddress.connectionString)
+	dbAdapter.Open(context.Background())
+	repo := repository.NewDatabaseRepository(dbAdapter)
+	dbService := service.NewDatabaseService(repo, memRepo, int(configData.FileWork.storeInterval))
+	return dbService
+}
+
+func setupFileService(memRepo *repository.MemRepo) *service.FileService{
+	fWriter, err := fConfig.NewFileWriter(configData.FileWork.fileStoragePath)
+	if err != nil {
+		log.Fatal(err)
+		return nil
+	}
+	fReader, err := fConfig.NewFileReader(configData.FileWork.fileStoragePath)
+	if err != nil {
+		log.Fatal(err)
+		return nil
+	}
+	fWorker := fConfig.NewFileManager(fReader, fWriter)
+	fRepo := repository.NewFileRepo(fWorker)
+	fService := service.NewFileService(fRepo, memRepo, int(configData.FileWork.storeInterval))
+	return fService
+}
+
+
+func setupRouter(service service.Service) *chi.Mux {
 	router := chi.NewRouter()
 
 	router.Use(middleware.StripSlashes)
 	router.Use(handler.GetZippedDataMiddleware)
 	router.Use(handler.GiveZippedDataMiddleware)
 	if configData.FileWork.storeInterval == 0 {
-		router.Use(handler.SaveAfterPostMiddleware(fileService))
+		router.Use(handler.SaveAfterPostMiddleware(service))
 	}
 	return router
 }
 
-func setupMemStorage() *config.MemStorage {
-	model := models.NewStorageModel()
-	conf := config.NewMemStorage(model)
-	return conf
-}
-
-func setupDatabaseAdapter(connectionString string) db.DatabaseAdapter {
-	adapter := db.NewPgDatabaseAdapter(connectionString)
-	return adapter
-}
- 
-func setupPostgreSQLConnection(adapter db.DatabaseAdapter) *repository.DatabaseRepository {
-	databaseRepo := repository.NewDatabaseRepository(adapter)
-	return databaseRepo
-}
-
-func setupFileService(conf repository.Storage) (*service.FileService, *repository.MemRepo) {
-	reader, err := config.NewFileReader(configData.FileWork.fileStoragePath)	
-	if err != nil {
-		log.Printf("can't open file for restore: %v", err)
-	}
-	writer, err := config.NewFileWriter(configData.FileWork.fileStoragePath)
-	if err != nil {
-		log.Printf("cont open file for writing: %v", err)
-	}
-	fileManager := config.NewFileManager(reader, writer)
-	repo := repository.NewMemRepo(conf, fileManager)
-	fileService := service.NewFileService(repo, int(configData.FileWork.storeInterval))
-	return fileService, repo
-}
-
-func setupServer(repo *repository.MemRepo, dbRepo *repository.DatabaseRepository, fileService *service.FileService) http.Server {
-	router := setupRouter(fileService)
+func setupServer(service service.Service) http.Server {
+	router := setupRouter(service)
 	
-	metricsService := service.NewMetricsService(repo, dbRepo)
-	metricsHandler := handler.NewMetricsHandler(metricsService)
+	metricsHandler := handler.NewMetricsHandler(service)
 
 	if configData.FileWork.restore {
 		
-		res, err := fileService.ReadData()
-		if err != nil {
-			log.Printf("can't read data from file: %v", err)
+		res := service.GetAll()
+		if len(res) == 0 {
+			log.Printf("no data")
 		}
 		for _, metric := range res {
 			switch metric.MType{
 				case models.Gauge:
-					metricsService.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
+					service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
 				case models.Counter:
-					metricsService.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))
+					service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))
 			}
 		}
 	}
 
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", metricsHandler.ServePage)
-		r.Get("/ping", metricsHandler.Ping().ServeHTTP)
+		r.Get("/ping", metricsHandler.Ping(context.Background()).ServeHTTP)
 		r.Post("/update", logger.AttachLoggingToResponse(metricsHandler.UpdateMetricsDataHandle()))
 		r.Post("/update/{metricType}/{metricName}/{metricValue}", logger.AttachLoggingToResponse(metricsHandler.SetMetricDataHandle()))
 		r.Route("/value", func(r chi.Router) {
@@ -139,7 +147,7 @@ func setupServer(repo *repository.MemRepo, dbRepo *repository.DatabaseRepository
 	})
 
 	if configData.FileWork.storeInterval != 0 {
-		go fileService.RunSaving(context.Background())
+		go service.RunSaving(context.Background())
 	}
 
 	return http.Server{

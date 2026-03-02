@@ -2,7 +2,10 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
+
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
@@ -12,7 +15,7 @@ type FileWriter struct {
 }
 
 func NewFileWriter(filename string) (*FileWriter, error) {
-	file, err := os.OpenFile(filename, os.O_WRONLY, 0666)
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0666)
 
 	if err != nil {
 		return nil, err
@@ -25,7 +28,19 @@ func NewFileWriter(filename string) (*FileWriter, error) {
 }
 
 func (fw *FileWriter) WriteData (data []models.Metrics) error {
+	err := fw.file.Truncate(0)
+	if err != nil {
+		return err
+	}
+	fw.file.Seek(0,0)
 	return fw.encoder.Encode(data)
+}
+
+func (fw *FileWriter) WriteOneData (data models.Metrics) error {
+	if _, err := fw.file.Seek(0, io.SeekEnd); err != nil { 
+        return err
+    }
+    return fw.encoder.Encode(data)
 }
 
 type FileReader struct {
@@ -69,4 +84,15 @@ func (fm *FileManager) WriteData(data []models.Metrics) error {
 
 func (fm *FileManager) ReadData() ([]models.Metrics, error) {
 	return fm.fileReader.ReadData()
+}
+
+func (fm *FileManager) WriteOneData(data models.Metrics) error {
+	return fm.fileWriter.WriteOneData(data)
+}
+
+func (fm *FileManager) FileExists() error {
+	if fm.fileReader.file == nil || fm.fileWriter.file == nil {
+		return errors.New("file does not exist")
+	}
+	return nil
 }

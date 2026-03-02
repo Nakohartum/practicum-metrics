@@ -7,25 +7,15 @@ import (
 	"testing"
 
 	config "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
-	"github.com/Nakohartum/practicum-metrics/internal/config/mocks"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
 	"github.com/go-chi/chi/v5"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUpdateMetricsDataHandler(t *testing.T){
-	ctrl := gomock.NewController(t)
-	fileReader, err := config.NewFileReader("test.json")
-	require.NoError(t, err)
-	fileWriter, err := config.NewFileWriter("test.json")
-	require.NoError(t, err)
-	fileWorker := config.NewFileManager(fileReader, fileWriter)
-	repo := repository.NewMemRepo(config.NewMemStubStorage(), fileWorker)
-	dbAdapter := mocks.NewMockDatabaseAdapter(ctrl)
-	dbRepo := repository.NewDatabaseRepository(dbAdapter)
-	ms := service.NewMetricsService(repo, dbRepo)
+	repo := repository.NewMemRepo(config.NewMemStubStorage())
+	ms := service.NewMetricsService(repo, 1)
 	mh := NewMetricsHandler(ms)
 
 	r := chi.NewRouter()

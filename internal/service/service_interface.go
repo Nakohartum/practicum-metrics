@@ -1,4 +1,4 @@
-package repository
+package service
 
 import (
 	"context"
@@ -6,9 +6,12 @@ import (
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
-type Storage interface {
+type Service interface {
 	GetData(string, string) (models.Metrics, error)
 	SetData(string, string, string) error
 	GetAll() []models.Metrics
-	Ping(ctx context.Context) error
+	SaveAllData() error
+	RunSaving(ctx context.Context)
+	Ping(context.Context) error
+	SaveDataAfterExit(context.Context) error
 }

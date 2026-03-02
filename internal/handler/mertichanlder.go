@@ -2,10 +2,12 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"html/template"
 	"net/http"
 	"strconv"
+
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
@@ -13,10 +15,10 @@ import (
 )
 
 type MetricsHandler struct {
-	service *service.MetricsService
+	service service.Service
 }
 
-func NewMetricsHandler(s *service.MetricsService) *MetricsHandler {
+func NewMetricsHandler(s service.Service) *MetricsHandler {
 	return &MetricsHandler{
 		service: s,
 	}
@@ -232,14 +234,14 @@ func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 }
 
 
-func (mh *MetricsHandler) Ping() http.Handler{
+func (mh *MetricsHandler) Ping(ctx context.Context) http.Handler{
 	fun := func (w http.ResponseWriter, r *http.Request)  {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 		
-		err := mh.service.Ping()
+		err := mh.service.Ping(ctx)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

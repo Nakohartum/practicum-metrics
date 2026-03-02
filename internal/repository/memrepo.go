@@ -1,18 +1,19 @@
 package repository
 
 import (
+	"context"
+
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 type MemRepo struct {
 	storage Storage
-	fileWorker FileWorker
+	
 }
 
-func NewMemRepo(config Storage, fileWorker FileWorker) *MemRepo {
+func NewMemRepo(config Storage) *MemRepo {
 	return &MemRepo{
 		storage: config,
-		fileWorker: fileWorker,
 	}
 }
 
@@ -28,10 +29,6 @@ func (mr *MemRepo) GetAll() []models.Metrics{
 	return mr.storage.GetAll()
 }
 
-func (mr *MemRepo) WriteData(data []models.Metrics) error {
-	return mr.fileWorker.WriteData(data)
-}
-
-func (mr *MemRepo) ReadData() ([]models.Metrics, error) {
-	return mr.fileWorker.ReadData()
+func (mr *MemRepo) Ping(ctx context.Context) error {
+	return mr.storage.Ping(ctx)
 }

@@ -8,6 +8,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -62,6 +63,35 @@ func (mr *MockDatabaseAdapterMockRecorder) Close(arg0 interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatabaseAdapter)(nil).Close), arg0)
 }
 
+// GetAll mocks base method.
+func (m *MockDatabaseAdapter) GetAll() []models.Metrics {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAll")
+	ret0, _ := ret[0].([]models.Metrics)
+	return ret0
+}
+
+// GetAll indicates an expected call of GetAll.
+func (mr *MockDatabaseAdapterMockRecorder) GetAll() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockDatabaseAdapter)(nil).GetAll))
+}
+
+// GetData mocks base method.
+func (m *MockDatabaseAdapter) GetData(arg0, arg1 string) (models.Metrics, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetData", arg0, arg1)
+	ret0, _ := ret[0].(models.Metrics)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetData indicates an expected call of GetData.
+func (mr *MockDatabaseAdapterMockRecorder) GetData(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetData", reflect.TypeOf((*MockDatabaseAdapter)(nil).GetData), arg0, arg1)
+}
+
 // Open mocks base method.
 func (m *MockDatabaseAdapter) Open(arg0 context.Context) error {
 	m.ctrl.T.Helper()
@@ -74,4 +104,18 @@ func (m *MockDatabaseAdapter) Open(arg0 context.Context) error {
 func (mr *MockDatabaseAdapterMockRecorder) Open(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDatabaseAdapter)(nil).Open), arg0)
+}
+
+// SetData mocks base method.
+func (m *MockDatabaseAdapter) SetData(arg0 models.Metrics) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetData", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetData indicates an expected call of SetData.
+func (mr *MockDatabaseAdapterMockRecorder) SetData(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetData", reflect.TypeOf((*MockDatabaseAdapter)(nil).SetData), arg0)
 }

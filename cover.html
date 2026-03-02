@@ -1,0 +1,1953 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>agent: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/Nakohartum/practicum-metrics/cmd/agent/flags.go (0.0%)</option>
+				
+				<option value="file1">github.com/Nakohartum/practicum-metrics/cmd/agent/main.go (0.0%)</option>
+				
+				<option value="file2">github.com/Nakohartum/practicum-metrics/cmd/server/flags.go (0.0%)</option>
+				
+				<option value="file3">github.com/Nakohartum/practicum-metrics/cmd/server/main.go (0.0%)</option>
+				
+				<option value="file4">github.com/Nakohartum/practicum-metrics/internal/agent/metricagent.go (34.5%)</option>
+				
+				<option value="file5">github.com/Nakohartum/practicum-metrics/internal/config/db/pgdatabase.go (0.0%)</option>
+				
+				<option value="file6">github.com/Nakohartum/practicum-metrics/internal/config/filestorage/filestorage.go (62.5%)</option>
+				
+				<option value="file7">github.com/Nakohartum/practicum-metrics/internal/config/memstorage/memstorage.go (70.4%)</option>
+				
+				<option value="file8">github.com/Nakohartum/practicum-metrics/internal/config/mocks/db_mock.go (0.0%)</option>
+				
+				<option value="file9">github.com/Nakohartum/practicum-metrics/internal/handler/mertichanlder.go (65.1%)</option>
+				
+				<option value="file10">github.com/Nakohartum/practicum-metrics/internal/handler/middleware.go (0.0%)</option>
+				
+				<option value="file11">github.com/Nakohartum/practicum-metrics/internal/logger/logger.go (0.0%)</option>
+				
+				<option value="file12">github.com/Nakohartum/practicum-metrics/internal/model/metrics.go (0.0%)</option>
+				
+				<option value="file13">github.com/Nakohartum/practicum-metrics/internal/repository/databaserepo.go (0.0%)</option>
+				
+				<option value="file14">github.com/Nakohartum/practicum-metrics/internal/repository/filerepo.go (0.0%)</option>
+				
+				<option value="file15">github.com/Nakohartum/practicum-metrics/internal/repository/memrepo.go (0.0%)</option>
+				
+				<option value="file16">github.com/Nakohartum/practicum-metrics/internal/service/databaseservice.go (0.0%)</option>
+				
+				<option value="file17">github.com/Nakohartum/practicum-metrics/internal/service/fileservice.go (0.0%)</option>
+				
+				<option value="file18">github.com/Nakohartum/practicum-metrics/internal/service/metricsservice.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "flag"
+        "fmt"
+        "os"
+        "strconv"
+        "strings"
+)
+
+type Config struct {
+    address Address
+    reportInterval int64
+    pollInterval int64
+}
+
+type Address struct {
+        host string `env:"ADDRESS"`
+}
+
+
+func (a *Address) String() string <span class="cov0" title="0">{
+    host, port, ok := strings.Cut(a.host, ":")
+    if !ok </span><span class="cov0" title="0">{
+        host = a.host
+        port = ""
+    }</span>
+    <span class="cov0" title="0">if host == "" </span><span class="cov0" title="0">{
+        host = "localhost"
+    }</span>
+    <span class="cov0" title="0">if port == "" </span><span class="cov0" title="0">{
+        port = "8080"
+    }</span>
+    <span class="cov0" title="0">return "http://" + host + ":" + port</span>
+}
+
+
+func (a *Address) Set(value string) error <span class="cov0" title="0">{
+        res := strings.Split(value, ":")
+
+        if len(res) != 2</span><span class="cov0" title="0">{
+                return fmt.Errorf("bad address %q, want host:port", value)
+        }</span>
+
+        <span class="cov0" title="0">a.host = value
+        return nil</span>
+}
+
+var configData = Config{
+    address: Address{host: "localhost:8080"},
+    reportInterval: 10,
+    pollInterval: 2,
+}
+
+func parseFlags() <span class="cov0" title="0">{
+    flag.Var(&amp;configData.address, "a", "server address (host:port)")
+    flag.Int64Var(&amp;configData.reportInterval, "r", 10, "report interval")
+    flag.Int64Var(&amp;configData.pollInterval, "p", 2, "poll interval")
+    flag.Parse() 
+
+    
+    if v, ok := os.LookupEnv("ADDRESS"); ok </span><span class="cov0" title="0">{
+        _ = configData.address.Set(v)
+    }</span>
+
+    <span class="cov0" title="0">if v, ok := os.LookupEnv("REPORT_INTERVAL"); ok </span><span class="cov0" title="0">{
+        if intVal, err := strconv.ParseInt(v, 10, 64); err == nil </span><span class="cov0" title="0">{
+            configData.reportInterval = intVal
+        }</span>
+    }
+    <span class="cov0" title="0">if v, ok := os.LookupEnv("POLL_INTERVAL"); ok </span><span class="cov0" title="0">{
+        if intVal, err := strconv.ParseInt(v, 10, 64); err == nil </span><span class="cov0" title="0">{
+            configData.pollInterval = intVal
+        }</span>
+    }
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package main
+
+import (
+        "context"
+
+        "github.com/Nakohartum/practicum-metrics/internal/agent"
+)
+
+func main() <span class="cov0" title="0">{
+        parseFlags()
+        var a = agent.NewAgentMetrics(int(configData.pollInterval), int(configData.reportInterval))
+        a.Run(context.Background(), configData.address.String())
+}</pre>
+		
+		<pre class="file" id="file2" style="display: none">package main
+
+import (
+        "flag"
+        "fmt"
+        "os"
+        "strconv"
+        "strings"
+)
+
+type Config struct {
+        Address Address
+        FileWork FileWork
+        DatabaseAddress DatabaseAddress
+}
+
+type DatabaseAddress struct {
+        connectionString string `env:"DATABASE_DSN"`
+}
+
+type Address struct{
+        url string  `env:"ADDRESS"`
+}
+
+func (a *Address) String() string<span class="cov0" title="0">{
+        return a.url
+}</span>
+
+func (a *Address) Set(value string) error<span class="cov0" title="0">{
+        res := strings.Split(value, ":")
+
+        if len(res) != 2</span><span class="cov0" title="0">{
+                return fmt.Errorf("bad address %q, want host:port", value)
+        }</span>
+
+        <span class="cov0" title="0">a.url = value
+        return nil</span>
+}
+
+type FileWork struct {
+        storeInterval int64 `env:"STORE_INTERVAL"`
+        fileStoragePath string `env:"FILE_STORAGE_PATH"`
+        restore bool `env:"RESTORE"`
+}
+
+var configData = Config{
+        Address: Address{
+                url: "localhost:8080",
+        },
+        FileWork: FileWork{
+                storeInterval: 2,
+                fileStoragePath: "file.json",
+                restore: false,
+        },
+        DatabaseAddress: DatabaseAddress{
+                connectionString: "",
+        },
+}
+
+func parseFlags() <span class="cov0" title="0">{
+        
+        flag.Var(&amp;configData.Address, "a", "server address (host:port)")
+        flag.Int64Var(&amp;configData.FileWork.storeInterval, "i", 2, "store interval in seconds")
+        flag.StringVar(&amp;configData.FileWork.fileStoragePath, "f", "file.json", "path to store data")
+        flag.BoolVar(&amp;configData.FileWork.restore, "r", false, "true for restore, false for not")
+        flag.StringVar(&amp;configData.DatabaseAddress.connectionString, "d", "", "connection string for database")
+        flag.Parse()
+
+        
+        if v, ok := os.LookupEnv("ADDRESS"); ok &amp;&amp; v != "" </span><span class="cov0" title="0">{
+                _ = configData.Address.Set(v)
+        }</span>
+
+        <span class="cov0" title="0">if v, ok := os.LookupEnv("STORE_INTERVAL"); ok &amp;&amp; v != "" </span><span class="cov0" title="0">{
+                res, err := strconv.ParseInt(v, 10, 64)
+                if err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("bad store interval %q, want integer: %v\n", v, err)
+                }</span>
+                <span class="cov0" title="0">configData.FileWork.storeInterval = res</span>
+        }
+
+        <span class="cov0" title="0">if v, ok := os.LookupEnv("FILE_STORAGE_PATH"); ok &amp;&amp; v != "" </span><span class="cov0" title="0">{
+                configData.FileWork.fileStoragePath = v
+        }</span>
+
+        <span class="cov0" title="0">if v, ok := os.LookupEnv("RESTORE"); ok &amp;&amp; v != "" </span><span class="cov0" title="0">{
+                res, err := strconv.ParseBool(v)
+                if err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("bad restore value %q, want boolean: %v\n", v, err)
+                }</span>
+                <span class="cov0" title="0">configData.FileWork.restore = res</span>
+        }
+
+        <span class="cov0" title="0">if v, ok := os.LookupEnv("DATABASE_DSN"); ok &amp;&amp; v != "" </span><span class="cov0" title="0">{
+                configData.DatabaseAddress.connectionString = v
+        }</span>
+}</pre>
+		
+		<pre class="file" id="file3" style="display: none">package main
+
+import (
+        "context"
+        "log"
+        "net/http"
+        "os"
+        "os/signal"
+        "strconv"
+        "syscall"
+        "time"
+
+        mConfig "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
+        dbConfig "github.com/Nakohartum/practicum-metrics/internal/config/db"
+        fConfig "github.com/Nakohartum/practicum-metrics/internal/config/filestorage"
+        "github.com/Nakohartum/practicum-metrics/internal/handler"
+        "github.com/Nakohartum/practicum-metrics/internal/logger"
+        models "github.com/Nakohartum/practicum-metrics/internal/model"
+        "github.com/Nakohartum/practicum-metrics/internal/repository"
+        "github.com/Nakohartum/practicum-metrics/internal/service"
+        "github.com/go-chi/chi/v5"
+        "github.com/go-chi/chi/v5/middleware"
+)
+
+func main() <span class="cov0" title="0">{
+        parseFlags()
+        memRepo := setupMemRepo()
+        var service service.Service = setupMemService(memRepo)
+
+        if configData.FileWork.fileStoragePath != ""</span><span class="cov0" title="0">{
+                service = setupFileService(memRepo)
+        }</span>
+
+        <span class="cov0" title="0">if configData.DatabaseAddress.connectionString != ""</span><span class="cov0" title="0">{
+                service = setupDatabaseService(memRepo)
+        }</span>
+
+        <span class="cov0" title="0">server := setupServer(service)
+        go func() </span><span class="cov0" title="0">{
+                log.Println("Server started")
+                if err := server.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed </span><span class="cov0" title="0">{
+                        log.Fatalf("Could not listen on %s: %v\n", configData.Address.String(), err)
+                }</span>
+        }()
+        
+        <span class="cov0" title="0">quit := make(chan os.Signal, 1)
+        signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+        &lt;-quit
+
+        ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+        defer cancel()
+        
+        err := service.SaveDataAfterExit(ctx)
+
+        if err != nil </span><span class="cov0" title="0">{
+                log.Println(err)
+        }</span>
+
+        <span class="cov0" title="0">if err := server.Shutdown(ctx); err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Server forced to shutdown: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">log.Println("Server shut down")</span>
+}
+
+func setupMemRepo() *repository.MemRepo <span class="cov0" title="0">{
+        model := models.NewStorageModel()
+        config := mConfig.NewMemStorage(model)
+        repo := repository.NewMemRepo(config)
+        return repo
+}</span>
+
+func setupMemService(repo *repository.MemRepo) *service.MetricsService <span class="cov0" title="0">{
+        service := service.NewMetricsService(repo, int(configData.FileWork.storeInterval))
+        return service
+}</span>
+
+func setupDatabaseService(memRepo *repository.MemRepo) *service.DatabaseService <span class="cov0" title="0">{
+        dbAdapter := dbConfig.NewPgDatabaseAdapter(configData.DatabaseAddress.connectionString)
+        dbAdapter.Open(context.Background())
+        repo := repository.NewDatabaseRepository(dbAdapter)
+        dbService := service.NewDatabaseService(repo, memRepo, int(configData.FileWork.storeInterval))
+        return dbService
+}</span>
+
+func setupFileService(memRepo *repository.MemRepo) *service.FileService<span class="cov0" title="0">{
+        fWriter, err := fConfig.NewFileWriter(configData.FileWork.fileStoragePath)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatal(err)
+                return nil
+        }</span>
+        <span class="cov0" title="0">fReader, err := fConfig.NewFileReader(configData.FileWork.fileStoragePath)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatal(err)
+                return nil
+        }</span>
+        <span class="cov0" title="0">fWorker := fConfig.NewFileManager(fReader, fWriter)
+        fRepo := repository.NewFileRepo(fWorker)
+        fService := service.NewFileService(fRepo, memRepo, int(configData.FileWork.storeInterval))
+        return fService</span>
+}
+
+
+func setupRouter(service service.Service) *chi.Mux <span class="cov0" title="0">{
+        router := chi.NewRouter()
+
+        router.Use(middleware.StripSlashes)
+        router.Use(handler.GetZippedDataMiddleware)
+        router.Use(handler.GiveZippedDataMiddleware)
+        if configData.FileWork.storeInterval == 0 </span><span class="cov0" title="0">{
+                router.Use(handler.SaveAfterPostMiddleware(service))
+        }</span>
+        <span class="cov0" title="0">return router</span>
+}
+
+func setupServer(service service.Service) http.Server <span class="cov0" title="0">{
+        router := setupRouter(service)
+        
+        metricsHandler := handler.NewMetricsHandler(service)
+
+        if configData.FileWork.restore </span><span class="cov0" title="0">{
+                
+                res := service.GetAll()
+                if len(res) == 0 </span><span class="cov0" title="0">{
+                        log.Printf("no data")
+                }</span>
+                <span class="cov0" title="0">for _, metric := range res </span><span class="cov0" title="0">{
+                        switch metric.MType</span>{
+                                case models.Gauge:<span class="cov0" title="0">
+                                        service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))</span>
+                                case models.Counter:<span class="cov0" title="0">
+                                        service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))</span>
+                        }
+                }
+        }
+
+        <span class="cov0" title="0">router.Route("/", func(r chi.Router) </span><span class="cov0" title="0">{
+                r.Get("/", metricsHandler.ServePage)
+                r.Get("/ping", metricsHandler.Ping(context.Background()).ServeHTTP)
+                r.Post("/update", logger.AttachLoggingToResponse(metricsHandler.UpdateMetricsDataHandle()))
+                r.Post("/update/{metricType}/{metricName}/{metricValue}", logger.AttachLoggingToResponse(metricsHandler.SetMetricDataHandle()))
+                r.Route("/value", func(r chi.Router) </span><span class="cov0" title="0">{
+                        r.Post("/", logger.AttachLoggingToResponse(metricsHandler.GetMetricsByNameHandle()))
+                        r.Get("/{metricType}/{metricName}", logger.AttachLoggingToResponse(metricsHandler.GetMetricDataHandle()))
+                }</span>)
+        })
+
+        <span class="cov0" title="0">if configData.FileWork.storeInterval != 0 </span><span class="cov0" title="0">{
+                go service.RunSaving(context.Background())
+        }</span>
+
+        <span class="cov0" title="0">return http.Server{
+                Addr:    configData.Address.String(),
+                Handler: router,
+        }</span>
+}</pre>
+		
+		<pre class="file" id="file4" style="display: none">package agent
+
+import (
+        "bytes"
+        "compress/gzip"
+        "context"
+        "encoding/json"
+        "fmt"
+        "log"
+        "math/rand"
+        "runtime"
+        "time"
+
+        internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
+        models "github.com/Nakohartum/practicum-metrics/internal/model"
+        "github.com/go-resty/resty/v2"
+)
+
+type MetricsAgent struct {
+        PollInterval   time.Duration
+        ReportInterval time.Duration
+        gaugeMetrics   map[string]float64
+        counterMetrics map[string]int64
+        client *resty.Client
+        sleep func(time.Duration)
+}
+
+func NewAgentMetrics(pollInterval, reportInterval int) *MetricsAgent <span class="cov8" title="1">{
+        var agent = MetricsAgent{
+                PollInterval:   time.Duration(pollInterval * int(time.Second)),
+                ReportInterval: time.Duration(reportInterval * int(time.Second)),
+                gaugeMetrics:   make(map[string]float64),
+                counterMetrics: make(map[string]int64),
+                client: resty.New().SetHeader("Content-Type", "application/json"),
+        }
+        internalLogger.AttachLoggingToRequest(agent.client)
+        return &amp;agent
+}</span>
+
+func (mA *MetricsAgent) setRuntimeGaugeMetrics() <span class="cov0" title="0">{
+        var m runtime.MemStats
+
+        runtime.ReadMemStats(&amp;m)
+
+        mA.setGaugeMetric("Alloc",float64(m.Alloc))
+        mA.setGaugeMetric("BuckHashSys", float64(m.BuckHashSys))
+        mA.setGaugeMetric("Frees", float64(m.Frees))
+        mA.setGaugeMetric("GCCPUFraction", m.GCCPUFraction)
+        mA.setGaugeMetric("GCSys", float64(m.GCSys))
+        mA.setGaugeMetric("HeapAlloc", float64(m.HeapAlloc))
+        mA.setGaugeMetric("HeapInuse", float64(m.HeapInuse))
+        mA.setGaugeMetric("HeapIdle", float64(m.HeapIdle))
+        mA.setGaugeMetric("HeapObjects", float64(m.HeapObjects))
+        mA.setGaugeMetric("HeapReleased", float64(m.HeapReleased))
+        mA.setGaugeMetric("HeapSys", float64(m.HeapSys))
+        mA.setGaugeMetric("LastGC", float64(m.LastGC))
+        mA.setGaugeMetric("Lookups", float64(m.Lookups))
+        mA.setGaugeMetric("MCacheInuse", float64(m.MCacheInuse))
+        mA.setGaugeMetric("MCacheSys", float64(m.MCacheSys))
+        mA.setGaugeMetric("MSpanInuse", float64(m.MSpanInuse))
+        mA.setGaugeMetric("MSpanSys", float64(m.MSpanSys))
+        mA.setGaugeMetric("Mallocs", float64(m.Mallocs))
+        mA.setGaugeMetric("NextGC", float64(m.NextGC))
+        mA.setGaugeMetric("NumForcedGC", float64(m.NumForcedGC))
+        mA.setGaugeMetric("NumGC", float64(m.NumGC))
+        mA.setGaugeMetric("OtherSys", float64(m.OtherSys))
+        mA.setGaugeMetric("PauseTotalNs", float64(m.PauseTotalNs))
+        mA.setGaugeMetric("StackInuse", float64(m.StackInuse))
+        mA.setGaugeMetric("StackSys", float64(m.StackSys))
+        mA.setGaugeMetric("Sys", float64(m.Sys))
+        mA.setGaugeMetric("TotalAlloc", float64(m.TotalAlloc))
+        mA.setGaugeMetric("RandomValue", rand.Float64() * 100)
+}</span>
+
+func (mA *MetricsAgent) setGaugeMetric(metricName string, value float64) <span class="cov8" title="1">{
+        mA.gaugeMetrics[metricName] = value
+}</span>
+
+func (mA *MetricsAgent) setCounterMetrics() <span class="cov0" title="0">{
+        mA.counterMetrics["PollCount"]++
+}</span>
+
+
+func (mA *MetricsAgent) sendGaugeMetrics(path string)<span class="cov8" title="1">{
+        for k, v := range mA.gaugeMetrics</span><span class="cov8" title="1">{
+                endpoint := fmt.Sprintf("%s/update", path)
+
+                metric := models.Metrics{
+                        ID: k,
+                        MType: "gauge",
+                        Value: &amp;v,
+                }
+
+                jsonData, err := json.Marshal(metric)
+
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Println(err)
+                }</span>
+
+                <span class="cov8" title="1">compressedData, err := compressData(jsonData)
+
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Println(err)
+                }</span>
+                
+                <span class="cov8" title="1">resp, err := mA.client.R().
+                SetHeader("Content-Type", "application/json").
+                SetHeader("Content-Encoding", "gzip").
+                SetBody(compressedData).Post(endpoint)
+
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Println(err)
+                }</span>
+
+                <span class="cov8" title="1">fmt.Print(resp)</span>
+        }
+}
+
+func (mA *MetricsAgent) sendCounterMetrics(path string)<span class="cov8" title="1">{
+        for k, v := range mA.counterMetrics</span><span class="cov8" title="1">{
+                endpoint := fmt.Sprintf("%s/update", path)
+
+                metric := models.Metrics{
+                        ID: k,
+                        MType: "counter",
+                        Delta: &amp;v,
+                }
+
+                jsonData, err := json.Marshal(metric)
+
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Println(err)
+                }</span>
+                
+                <span class="cov8" title="1">compressedData, err := compressData(jsonData)
+
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Println(err)
+                }</span>
+
+
+                <span class="cov8" title="1">resp, err := mA.client.R().
+                SetHeader("Content-Type", "application/json").
+                SetHeader("Content-Encoding", "gzip").
+                SetBody(compressedData).Post(endpoint)
+
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Println(err)
+                }</span>
+
+                <span class="cov8" title="1">fmt.Print(resp)</span>
+        }
+}
+
+func (mA *MetricsAgent) sendMetrics(path string) <span class="cov0" title="0">{
+        mA.sendGaugeMetrics(path)
+        mA.sendCounterMetrics(path)
+}</span>
+
+func (mA *MetricsAgent) Run(ctx context.Context, host string) <span class="cov0" title="0">{
+        if mA.sleep == nil </span><span class="cov0" title="0">{
+                mA.sleep = time.Sleep
+        }</span>
+        <span class="cov0" title="0">elapsed := time.Duration(0)
+        endpoint := host
+
+
+        for </span><span class="cov0" title="0">{
+                select</span>{
+                case &lt;- ctx.Done():<span class="cov0" title="0">
+                        return</span>
+                default:<span class="cov0" title="0"></span>
+                }
+                <span class="cov0" title="0">mA.setRuntimeGaugeMetrics()
+                elapsed += mA.PollInterval
+
+                if elapsed &gt;= mA.ReportInterval </span><span class="cov0" title="0">{
+                        mA.setCounterMetrics()
+                        mA.sendMetrics(endpoint)
+                        elapsed = 0
+                }</span>
+                <span class="cov0" title="0">mA.sleep(mA.PollInterval)</span>
+        }
+}
+
+func compressData(data []byte) ([]byte, error) <span class="cov8" title="1">{
+        var buf bytes.Buffer
+
+        gz := gzip.NewWriter(&amp;buf)
+
+        if _, err := gz.Write(data); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">if err := gz.Close(); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">return buf.Bytes(), nil</span>
+}</pre>
+		
+		<pre class="file" id="file5" style="display: none">package config
+
+import (
+        "context"
+        "errors"
+
+        models "github.com/Nakohartum/practicum-metrics/internal/model"
+        "github.com/jackc/pgx/v5"
+)
+
+var (
+        errNoConnectionToClose = errors.New("no connection to close")
+)
+
+type PgDatabaseAdapter struct {
+        connectionString string
+        db               *pgx.Conn
+}
+
+func NewPgDatabaseAdapter(connectionString string) *PgDatabaseAdapter <span class="cov0" title="0">{
+        return &amp;PgDatabaseAdapter{
+                connectionString: connectionString,
+        }
+}</span>
+
+func (dbAdapter *PgDatabaseAdapter) Open(ctx context.Context) error<span class="cov0" title="0">{
+        connection, err := pgx.Connect(ctx, dbAdapter.connectionString)
+
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">dbAdapter.db = connection
+        return nil</span>
+}
+
+func (dbAdapter *PgDatabaseAdapter) Close(ctx context.Context) error<span class="cov0" title="0">{
+        if dbAdapter.db == nil </span><span class="cov0" title="0">{
+                return errNoConnectionToClose
+        }</span>
+        <span class="cov0" title="0">err := dbAdapter.db.Close(ctx)
+        return err</span>
+}
+
+func (dbAdapter *PgDatabaseAdapter) CheckConnection(ctx context.Context) error<span class="cov0" title="0">{
+        return dbAdapter.db.Ping(ctx)
+}</span>
+
+func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error <span class="cov0" title="0">{
+        var count int64
+        row := dbAdapter.db.QueryRow(context.Background(), "SELECT COUNT(*) FROM metric where id = $1 and metric_type = $2", model.ID, model.MType)
+        err := row.Scan(count)
+        if count == 0 </span><span class="cov0" title="0">{
+                _, err = dbAdapter.db.Exec(context.Background(), "INSERT INTO metric(id, metric_type, delta, value) VALUES($1, $2, $3, $4)", model.ID, model.MType, model.Delta, model.Value)
+        }</span> else<span class="cov0" title="0"> {
+                _, err = dbAdapter.db.Exec(context.Background(), "UPDATE metric SET delta = $1, value = $2 where id = $3 and metric_type = $4", model.Delta, model.Value, model.ID, model.MType)
+        }</span>
+        <span class="cov0" title="0">return err</span>
+}
+
+func (dbAdapter *PgDatabaseAdapter) GetAll() []models.Metrics <span class="cov0" title="0">{
+        results := make([]models.Metrics, 0)
+        rows, err := dbAdapter.db.Query(context.Background(), "select * from metric")
+        if err != nil </span><span class="cov0" title="0">{
+                return results
+        }</span>
+
+        <span class="cov0" title="0">for rows.Next()</span><span class="cov0" title="0">{
+                var m models.Metrics
+
+                rows.Scan(&amp;m.ID, &amp;m.MType, &amp;m.Delta, &amp;m.Value)
+                results = append(results, m)
+        }</span>
+        <span class="cov0" title="0">return results</span>
+}
+
+func (dbAdapter *PgDatabaseAdapter) GetData(metricType string, metricKey string) (models.Metrics, error) <span class="cov0" title="0">{
+        var res models.Metrics
+
+        row := dbAdapter.db.QueryRow(context.Background(), "select * from metric where id = $1 and metric_type = $2", metricKey, metricType)
+        
+        err := row.Scan(&amp;res.ID, &amp;res.MType, &amp;res.Delta, &amp;res.Value)
+
+        return res, err
+}</span> </pre>
+		
+		<pre class="file" id="file6" style="display: none">package config
+
+import (
+        "encoding/json"
+        "errors"
+        "os"
+
+        models "github.com/Nakohartum/practicum-metrics/internal/model"
+)
+
+type FileWriter struct {
+        file *os.File
+        encoder *json.Encoder
+}
+
+func NewFileWriter(filename string) (*FileWriter, error) <span class="cov8" title="1">{
+        file, err := os.OpenFile(filename, os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0666)
+
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">return &amp;FileWriter{
+                file: file,
+                encoder: json.NewEncoder(file),
+        }, nil</span>
+}
+
+func (fw *FileWriter) WriteData (data []models.Metrics) error <span class="cov8" title="1">{
+        err := fw.file.Truncate(0)
+        if err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+        <span class="cov0" title="0">fw.file.Seek(0,0)
+        return fw.encoder.Encode(data)</span>
+}
+
+func (fw *FileWriter) WriteOneData (data models.Metrics) error <span class="cov0" title="0">{
+        return fw.encoder.Encode(data)
+}</span>
+
+type FileReader struct {
+        file *os.File
+        decoder *json.Decoder
+}
+
+func NewFileReader(filename string) (*FileReader, error) <span class="cov8" title="1">{
+        file, err := os.OpenFile(filename, os.O_RDONLY | os.O_CREATE, 0666)
+        
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">return &amp;FileReader{
+                file: file,
+                decoder: json.NewDecoder(file),
+        }, nil</span>
+}
+
+func (fr *FileReader) ReadData() ([]models.Metrics, error) <span class="cov8" title="1">{
+        var data []models.Metrics
+        err := fr.decoder.Decode(&amp;data)
+        return data, err
+}</span>
+
+type FileManager struct{
+        fileReader FileReader
+        fileWriter FileWriter
+}
+
+func NewFileManager(reader *FileReader, writer *FileWriter) *FileManager <span class="cov8" title="1">{
+        return &amp;FileManager{
+                fileReader: *reader,
+                fileWriter: *writer,
+        }
+}</span>
+
+func (fm *FileManager) WriteData(data []models.Metrics) error <span class="cov8" title="1">{
+        return fm.fileWriter.WriteData(data)
+}</span>
+
+func (fm *FileManager) ReadData() ([]models.Metrics, error) <span class="cov8" title="1">{
+        return fm.fileReader.ReadData()
+}</span>
+
+func (fm *FileManager) WriteOneData(data models.Metrics) error <span class="cov0" title="0">{
+        return fm.fileWriter.WriteOneData(data)
+}</span>
+
+func (fm *FileManager) FileExists() error <span class="cov0" title="0">{
+        if fm.fileReader.file == nil || fm.fileWriter.file == nil </span><span class="cov0" title="0">{
+                return errors.New("file does not exist")
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}</pre>
+		
+		<pre class="file" id="file7" style="display: none">package config
+
+import (
+        "context"
+        "errors"
+        "strconv"
+
+        "github.com/Nakohartum/practicum-metrics/internal/model"
+)
+
+var (
+        ErrNotExists = errors.New("item does not exist")
+)
+
+type MemStorage struct {
+        data *models.StorageModel
+}
+
+func NewMemStorage(model *models.StorageModel) *MemStorage <span class="cov0" title="0">{
+        return &amp;MemStorage{
+                data: model,
+        }
+}</span>
+
+func NewMemStubStorage() *MemStorage <span class="cov8" title="1">{
+        return &amp;MemStorage{
+                data: models.NewStorageModel(),
+        }
+}</span>
+
+func (ms *MemStorage) GetData(metricType, key string) (models.Metrics, error)<span class="cov8" title="1">{
+        switch metricType</span>{
+        case models.Counter:<span class="cov8" title="1">
+                if val, exists := ms.data.Counters[key]; exists</span><span class="cov8" title="1">{
+                        return models.Metrics{
+                                MType: models.Counter,
+                                ID: key,
+                                Delta: &amp;val,
+                        }, nil
+                }</span>
+        case models.Gauge:<span class="cov8" title="1">
+                if val, exists := ms.data.Gauges[key]; exists</span><span class="cov8" title="1">{
+                        return models.Metrics{
+                                MType: models.Gauge,
+                                ID: key,
+                                Value: &amp;val,
+                        }, nil 
+                }</span>
+        }
+        <span class="cov8" title="1">return models.Metrics{}, ErrNotExists</span>
+}
+
+
+func (ms *MemStorage) SetData(metricType, key, value string) error<span class="cov8" title="1">{
+        switch metricType</span>{
+        case models.Counter:<span class="cov8" title="1">
+                val, err := strconv.ParseInt(value, 10, 64)
+                if err != nil </span><span class="cov8" title="1">{
+                        return err
+                }</span>
+                <span class="cov8" title="1">ms.data.Counters[key] += val
+                return nil</span>
+        case models.Gauge:<span class="cov8" title="1">
+                val, err := strconv.ParseFloat(value, 64)
+                if err != nil </span><span class="cov8" title="1">{
+                        return err
+                }</span>
+                <span class="cov8" title="1">ms.data.Gauges[key] = val
+                return nil</span>
+        }
+
+        <span class="cov8" title="1">return errors.New("no metric found")</span>
+}
+
+func (ms *MemStorage) GetAll() []models.Metrics<span class="cov0" title="0">{
+        var res []models.Metrics;
+
+        for k, v := range ms.data.Counters</span><span class="cov0" title="0">{
+                res = append(res, models.Metrics{
+                        MType: models.Counter,
+                        ID: k,
+                        Delta: &amp;v,
+                })
+        }</span>
+
+        <span class="cov0" title="0">for k, v := range ms.data.Gauges </span><span class="cov0" title="0">{
+                res = append(res, models.Metrics{
+                        MType: models.Gauge,
+                        ID: k,
+                        Value: &amp;v,
+                })
+        }</span>
+
+        <span class="cov0" title="0">return res</span>
+}
+
+func (ms *MemStorage) Ping(ctx context.Context) error <span class="cov0" title="0">{
+        return ms.Ping(ctx)
+}</span>
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">// Code generated by MockGen. DO NOT EDIT.
+// Source: github.com/Nakohartum/practicum-metrics/internal/config/db (interfaces: DatabaseAdapter)
+
+// Package mocks is a generated GoMock package.
+package mocks
+
+import (
+        context "context"
+        reflect "reflect"
+
+        gomock "github.com/golang/mock/gomock"
+)
+
+// MockDatabaseAdapter is a mock of DatabaseAdapter interface.
+type MockDatabaseAdapter struct {
+        ctrl     *gomock.Controller
+        recorder *MockDatabaseAdapterMockRecorder
+}
+
+// MockDatabaseAdapterMockRecorder is the mock recorder for MockDatabaseAdapter.
+type MockDatabaseAdapterMockRecorder struct {
+        mock *MockDatabaseAdapter
+}
+
+// NewMockDatabaseAdapter creates a new mock instance.
+func NewMockDatabaseAdapter(ctrl *gomock.Controller) *MockDatabaseAdapter <span class="cov0" title="0">{
+        mock := &amp;MockDatabaseAdapter{ctrl: ctrl}
+        mock.recorder = &amp;MockDatabaseAdapterMockRecorder{mock}
+        return mock
+}</span>
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockDatabaseAdapter) EXPECT() *MockDatabaseAdapterMockRecorder <span class="cov0" title="0">{
+        return m.recorder
+}</span>
+
+// CheckConnection mocks base method.
+func (m *MockDatabaseAdapter) CheckConnection(arg0 context.Context) error <span class="cov0" title="0">{
+        m.ctrl.T.Helper()
+        ret := m.ctrl.Call(m, "CheckConnection", arg0)
+        ret0, _ := ret[0].(error)
+        return ret0
+}</span>
+
+// CheckConnection indicates an expected call of CheckConnection.
+func (mr *MockDatabaseAdapterMockRecorder) CheckConnection(arg0 interface{}) *gomock.Call <span class="cov0" title="0">{
+        mr.mock.ctrl.T.Helper()
+        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckConnection", reflect.TypeOf((*MockDatabaseAdapter)(nil).CheckConnection), arg0)
+}</span>
+
+// Close mocks base method.
+func (m *MockDatabaseAdapter) Close(arg0 context.Context) error <span class="cov0" title="0">{
+        m.ctrl.T.Helper()
+        ret := m.ctrl.Call(m, "Close", arg0)
+        ret0, _ := ret[0].(error)
+        return ret0
+}</span>
+
+// Close indicates an expected call of Close.
+func (mr *MockDatabaseAdapterMockRecorder) Close(arg0 interface{}) *gomock.Call <span class="cov0" title="0">{
+        mr.mock.ctrl.T.Helper()
+        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatabaseAdapter)(nil).Close), arg0)
+}</span>
+
+// Open mocks base method.
+func (m *MockDatabaseAdapter) Open(arg0 context.Context) error <span class="cov0" title="0">{
+        m.ctrl.T.Helper()
+        ret := m.ctrl.Call(m, "Open", arg0)
+        ret0, _ := ret[0].(error)
+        return ret0
+}</span>
+
+// Open indicates an expected call of Open.
+func (mr *MockDatabaseAdapterMockRecorder) Open(arg0 interface{}) *gomock.Call <span class="cov0" title="0">{
+        mr.mock.ctrl.T.Helper()
+        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDatabaseAdapter)(nil).Open), arg0)
+}</span>
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">package handler
+
+import (
+        "bytes"
+        "context"
+        "encoding/json"
+        "html/template"
+        "net/http"
+        "strconv"
+
+        models "github.com/Nakohartum/practicum-metrics/internal/model"
+        "github.com/Nakohartum/practicum-metrics/internal/repository"
+        "github.com/Nakohartum/practicum-metrics/internal/service"
+        "github.com/go-chi/chi/v5"
+)
+
+type MetricsHandler struct {
+        service service.Service
+}
+
+func NewMetricsHandler(s service.Service) *MetricsHandler <span class="cov8" title="1">{
+        return &amp;MetricsHandler{
+                service: s,
+        }
+}</span>
+
+
+
+func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler <span class="cov8" title="1">{
+        fun := func(w http.ResponseWriter, r *http.Request) </span><span class="cov8" title="1">{
+                var metric models.Metrics
+                var buf bytes.Buffer
+
+                _, err := buf.ReadFrom(r.Body)
+
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadRequest)
+                        return 
+                }</span>
+
+                <span class="cov8" title="1">if err := json.Unmarshal(buf.Bytes(), &amp;metric); err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadRequest)
+                        return 
+                }</span>
+                <span class="cov8" title="1">if metric.ID == "" </span><span class="cov8" title="1">{
+                        http.Error(w, "no metric's name", http.StatusBadRequest)
+                        return
+                }</span>
+                <span class="cov8" title="1">if metric.MType == ""</span><span class="cov8" title="1">{
+                        http.Error(w, "no metric's type", http.StatusBadRequest)
+                        return
+                }</span>
+                <span class="cov8" title="1">switch metric.MType </span>{
+                case models.Counter:<span class="cov8" title="1">
+                        if metric.Delta == nil </span><span class="cov0" title="0">{
+                                http.Error(w, "delta value is required for counter type", http.StatusBadRequest)
+                                return
+                        }</span>
+                        <span class="cov8" title="1">mh.service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))</span>
+                case models.Gauge:<span class="cov8" title="1">
+                        if metric.Value == nil </span><span class="cov0" title="0">{
+                                http.Error(w, "value is required for gauge type", http.StatusBadRequest)
+                                return
+                        }</span>
+                        <span class="cov8" title="1">mh.service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))</span>
+                }
+                
+                <span class="cov8" title="1">w.WriteHeader(http.StatusOK)</span>
+        }
+        <span class="cov8" title="1">return http.HandlerFunc(fun)</span>
+}
+
+func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler <span class="cov8" title="1">{
+        fun := func(w http.ResponseWriter, r *http.Request) </span><span class="cov8" title="1">{
+                var metricToSearch models.Metrics
+                var buf bytes.Buffer
+                _, err := buf.ReadFrom(r.Body)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadRequest)
+                        return
+                }</span>
+                <span class="cov8" title="1">if err := json.Unmarshal(buf.Bytes(), &amp;metricToSearch); err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadRequest)
+                        return
+                }</span>
+                <span class="cov8" title="1">if metricToSearch.ID == "" || metricToSearch.MType == "" </span><span class="cov0" title="0">{
+                        http.Error(w, "metric's name and type are required", http.StatusBadRequest)
+                        return 
+                }</span>
+                <span class="cov8" title="1">metricData, err := mh.service.GetData(metricToSearch.MType, metricToSearch.ID)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "no metric found", http.StatusNotFound)
+                        return
+                }</span>
+
+                <span class="cov8" title="1">responseData, err := json.Marshal(metricData)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "error marshaling response data", http.StatusInternalServerError)
+                        return
+                }</span>
+                
+                <span class="cov8" title="1">w.Header().Set("Content-Type", "application/json")
+                w.WriteHeader(http.StatusOK)
+                w.Write(responseData)</span>
+                
+        }
+        <span class="cov8" title="1">return http.HandlerFunc(fun)</span>
+}
+
+
+func (mh *MetricsHandler) SetMetricDataHandle() http.Handler <span class="cov8" title="1">{
+        fun := func(w http.ResponseWriter, r *http.Request) </span><span class="cov8" title="1">{
+                if r.Method != http.MethodPost </span><span class="cov0" title="0">{
+                        http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+                        return
+                }</span>
+
+                <span class="cov8" title="1">metricType := chi.URLParam(r, "metricType")
+                metricName := chi.URLParam(r, "metricName")
+                metricValue := chi.URLParam(r, "metricValue")
+
+                if metricName == "" </span><span class="cov8" title="1">{
+                        http.Error(w, "no metric's name", http.StatusNotFound)
+                        return
+                }</span>
+
+                <span class="cov8" title="1">if err := mh.service.SetData(metricType, metricName, metricValue); err != nil </span><span class="cov8" title="1">{
+                        http.Error(w, "error setting metric data", http.StatusBadRequest)
+                        return
+                }</span>
+
+                <span class="cov8" title="1">w.WriteHeader(http.StatusOK)</span>
+        }
+        <span class="cov8" title="1">return http.HandlerFunc(fun)</span>
+}
+
+func (mh *MetricsHandler) GetMetricDataHandle() http.Handler<span class="cov8" title="1">{
+        fun := func(w http.ResponseWriter, r *http.Request) </span><span class="cov8" title="1">{
+                if r.Method != http.MethodGet </span><span class="cov0" title="0">{
+                        http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+                        return
+                }</span>
+
+                <span class="cov8" title="1">metricType := chi.URLParam(r, "metricType")
+                metricName := chi.URLParam(r, "metricName")
+
+                if metricName == "" || metricType == "" </span><span class="cov0" title="0">{
+                        http.Error(w, "no metric found", http.StatusNotFound)
+                }</span>
+
+                <span class="cov8" title="1">metricData, err := mh.service.GetData(metricType, metricName)
+
+                if err != nil </span><span class="cov8" title="1">{
+                        http.Error(w, "no metric found", http.StatusNotFound)
+                        return
+                }</span>
+                <span class="cov8" title="1">w.WriteHeader(http.StatusOK)
+                
+                switch metricType</span>{
+                case models.Counter:<span class="cov8" title="1">
+                        w.Write([]byte(strconv.FormatInt(*metricData.Delta, 10)))</span>
+                case models.Gauge:<span class="cov8" title="1">
+                        w.Write([]byte(strconv.FormatFloat(*metricData.Value, 'f', -1, 64)))</span>
+                }
+                
+        }
+        <span class="cov8" title="1">return http.HandlerFunc(fun)</span>
+}
+
+
+type PageHandler struct {
+        service repository.Storage
+        tpl     *template.Template
+}
+
+func NewPageHandler(s repository.Storage) *PageHandler <span class="cov8" title="1">{
+        const page = `
+&lt;!doctype html&gt;
+&lt;html lang="ru"&gt;
+&lt;head&gt;
+  &lt;meta charset="utf-8"&gt;
+  &lt;title&gt;Metrics&lt;/title&gt;
+  &lt;style&gt;
+    body { font-family: sans-serif; padding: 24px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { text-align: left; }
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h1&gt;Metrics&lt;/h1&gt;
+  {{if .}}
+  &lt;table&gt;
+    &lt;thead&gt;
+      &lt;tr&gt;&lt;th&gt;Type&lt;/th&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Value&lt;/th&gt;&lt;/tr&gt;
+    &lt;/thead&gt;
+    &lt;tbody&gt;
+      {{range .}}
+        &lt;tr&gt;
+          &lt;td&gt;{{.Type}}&lt;/td&gt;
+          &lt;td&gt;{{.Name}}&lt;/td&gt;
+          &lt;td&gt;{{.Value}}&lt;/td&gt;
+        &lt;/tr&gt;
+      {{end}}
+    &lt;/tbody&gt;
+  &lt;/table&gt;
+  {{else}}
+    &lt;p&gt;Метрик пока нет.&lt;/p&gt;
+  {{end}}
+&lt;/body&gt;
+&lt;/html&gt;`
+        return &amp;PageHandler{
+                service: s,
+                tpl:     template.Must(template.New("page").Parse(page)),
+        }
+}</span>
+
+func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        if r.Method != http.MethodGet </span><span class="cov0" title="0">{
+                http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+                return
+        }</span>
+
+        <span class="cov8" title="1">w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+        data := mh.service.GetAll()
+
+        w.WriteHeader(http.StatusOK)
+
+        if err := NewPageHandler(mh.service).tpl.Execute(w, data); err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "template error", http.StatusInternalServerError)
+                return
+        }</span>
+}
+
+
+func (mh *MetricsHandler) Ping(ctx context.Context) http.Handler<span class="cov0" title="0">{
+        fun := func (w http.ResponseWriter, r *http.Request)  </span><span class="cov0" title="0">{
+                if r.Method != http.MethodGet </span><span class="cov0" title="0">{
+                        http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+                        return
+                }</span>
+                
+                <span class="cov0" title="0">err := mh.service.Ping(ctx)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusInternalServerError)
+                        return
+                }</span>
+                <span class="cov0" title="0">w.WriteHeader(http.StatusOK)</span>
+        }
+        <span class="cov0" title="0">return http.HandlerFunc(fun)</span>
+}</pre>
+		
+		<pre class="file" id="file10" style="display: none">package handler
+
+import (
+        "compress/gzip"
+        "io"
+        "net/http"
+        "strings"
+
+        "github.com/Nakohartum/practicum-metrics/internal/service"
+)
+
+type gZipWriter struct {
+        http.ResponseWriter
+        zw *gzip.Writer
+        gzipEnabled bool
+        wroteHeader bool
+}
+
+func newGzipWriter(w http.ResponseWriter) *gZipWriter <span class="cov0" title="0">{
+        return &amp;gZipWriter{ResponseWriter: w}
+}</span>
+
+func (w *gZipWriter) Write(b []byte) (int, error) <span class="cov0" title="0">{
+    if !w.wroteHeader </span><span class="cov0" title="0">{
+                w.WriteHeader(http.StatusOK)
+        }</span>
+
+        <span class="cov0" title="0">if w.gzipEnabled &amp;&amp; w.zw != nil </span><span class="cov0" title="0">{
+                return w.zw.Write(b)
+        }</span>
+        <span class="cov0" title="0">return w.ResponseWriter.Write(b)</span>
+}
+
+func (w *gZipWriter) WriteHeader(statusCode int) <span class="cov0" title="0">{
+        if w.wroteHeader </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">w.wroteHeader = true
+
+        if strings.Contains(w.Header().Get("Content-Type"), "application/json") || strings.Contains(w.Header().Get("Content-Type"), "text/html")</span><span class="cov0" title="0">{
+                w.gzipEnabled = true
+                w.Header().Set("Content-Encoding", "gzip")
+                w.zw = gzip.NewWriter(w.ResponseWriter)
+        }</span>
+        <span class="cov0" title="0">w.ResponseWriter.WriteHeader(statusCode)</span>
+}
+
+func (w *gZipWriter) Close() error <span class="cov0" title="0">{
+        if w.gzipEnabled &amp;&amp; w.zw != nil </span><span class="cov0" title="0">{
+                return w.zw.Close()
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+type gZipReader struct {
+        r io.ReadCloser
+        zr *gzip.Reader
+}
+
+func newGZipReader(r io.ReadCloser) (*gZipReader, error) <span class="cov0" title="0">{
+        zr, err := gzip.NewReader(r)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return &amp;gZipReader{r: r, zr: zr}, nil</span>
+}
+
+func (gr *gZipReader) Read(p []byte) (int, error) <span class="cov0" title="0">{
+        return gr.zr.Read(p)
+}</span>
+
+func (gr *gZipReader) Close() error <span class="cov0" title="0">{
+        err := gr.zr.Close()
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">return gr.r.Close()</span>
+}
+
+func GetZippedDataMiddleware(next http.Handler) http.Handler <span class="cov0" title="0">{
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                if !strings.Contains(r.Header.Get("Content-Encoding"), "gzip") </span><span class="cov0" title="0">{
+                        next.ServeHTTP(w, r)
+                        return 
+                }</span>
+                <span class="cov0" title="0">cw, err := newGZipReader(r.Body)
+
+
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadRequest)
+                        return 
+                }</span>
+
+                <span class="cov0" title="0">r.Body = cw
+                defer cw.Close()
+                r.Header.Del("Content-Encoding")
+                next.ServeHTTP(w, r)</span>
+        })
+}
+
+func GiveZippedDataMiddleware(next http.Handler) http.Handler <span class="cov0" title="0">{
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") </span><span class="cov0" title="0">{
+                        next.ServeHTTP(w, r)
+                        return 
+                }</span>
+
+                <span class="cov0" title="0">cw := newGzipWriter(w)
+
+                defer cw.Close()
+
+                next.ServeHTTP(cw, r)</span>
+        })
+}
+
+type statusWriter struct {
+        http.ResponseWriter
+        statusCode int
+}
+
+func (w *statusWriter) WriteHeader(statusCode int) <span class="cov0" title="0">{
+        w.statusCode = statusCode
+        w.ResponseWriter.WriteHeader(statusCode)
+}</span>
+
+
+func SaveAfterPostMiddleware(saver service.Service) func(http.Handler) http.Handler <span class="cov0" title="0">{
+        return func(next http.Handler) http.Handler </span><span class="cov0" title="0">{
+                return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                        if r.Method == http.MethodPost </span><span class="cov0" title="0">{
+                                sw := &amp;statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
+                                next.ServeHTTP(sw, r)
+                                if sw.statusCode &lt; 400 </span><span class="cov0" title="0">{
+                                        _ = saver.SaveAllData()
+                                }</span>
+                                <span class="cov0" title="0">return</span>
+                        }
+                        <span class="cov0" title="0">next.ServeHTTP(w, r)</span>
+                })
+        }
+}</pre>
+		
+		<pre class="file" id="file11" style="display: none">package logger
+
+import (
+        "context"
+        "net/http"
+        "time"
+
+        "github.com/go-resty/resty/v2"
+        "go.uber.org/zap"
+)
+
+var logger, _ = zap.NewDevelopment()
+
+type loggerKey string
+var timeKey = loggerKey("start")
+
+var sugar = *logger.Sugar()
+
+func AttachLoggingToRequest(r *resty.Client) <span class="cov0" title="0">{
+        r.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error </span><span class="cov0" title="0">{
+                ctx := context.WithValue(r.Context(), timeKey, time.Now())
+                r.SetContext(ctx)
+                return nil
+        }</span>)
+
+        <span class="cov0" title="0">r.OnAfterResponse(func(c *resty.Client, r *resty.Response) error </span><span class="cov0" title="0">{
+                start, _ := r.Request.Context().Value(timeKey).(time.Time)
+                duration := time.Since(start)
+
+                uri := r.Request.RawRequest.RequestURI
+
+                sugar.Infow("outgoing request", "uri", uri, "method", r.Request.Method, "duration", duration)
+                return nil
+        }</span>)
+}
+
+type loggingResponseWriter struct {
+        http.ResponseWriter
+        status int
+        size   int
+}
+
+func (lrw *loggingResponseWriter) WriteHeader(code int) <span class="cov0" title="0">{
+        lrw.status = code
+        lrw.ResponseWriter.WriteHeader(code)
+}</span>
+
+func (lrw *loggingResponseWriter) Write(b []byte) (int, error) <span class="cov0" title="0">{
+        n, err := lrw.ResponseWriter.Write(b)
+        lrw.size += n
+        return n, err
+}</span>
+
+
+func AttachLoggingToResponse(h http.Handler) http.HandlerFunc <span class="cov0" title="0">{
+        logFn := func (w http.ResponseWriter, r *http.Request)  </span><span class="cov0" title="0">{
+                lrw := &amp;loggingResponseWriter{
+                        ResponseWriter: w,
+                        status: 200,
+                        size: 0,
+                }
+                h.ServeHTTP(lrw, r)
+
+                sugar.Infow("response", "status code", lrw.status, "size of response", lrw.size)
+        }</span>
+
+        <span class="cov0" title="0">return http.HandlerFunc(logFn)</span>
+}</pre>
+		
+		<pre class="file" id="file12" style="display: none">package models
+
+const (
+        Counter = "counter"
+        Gauge   = "gauge"
+)
+
+// NOTE: Не усложняем пример, вводя иерархическую вложенность структур.
+// Органичиваясь плоской моделью.
+// Delta и Value объявлены через указатели,
+// что бы отличать значение "0", от не заданного значения
+// и соответственно не кодировать в структуру.
+type Metrics struct {
+    ID    string   `json:"id"`              // имя метрики
+    MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
+    Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
+    Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+}
+
+type StorageModel struct {
+        Counters map[string]int64
+        Gauges   map[string]float64
+}
+
+func NewStorageModel() *StorageModel <span class="cov0" title="0">{
+        return &amp;StorageModel{
+                Counters: make(map[string]int64),
+                Gauges:   make(map[string]float64),
+        }
+}</pre>
+		
+		<pre class="file" id="file13" style="display: none">package repository
+
+import (
+        "context"
+
+        config "github.com/Nakohartum/practicum-metrics/internal/config/db"
+        models "github.com/Nakohartum/practicum-metrics/internal/model"
+)
+
+type DatabaseRepository struct {
+        dbAdapter config.DatabaseAdapter
+}
+
+func (dr *DatabaseRepository) SetAllData(data []models.Metrics) error <span class="cov0" title="0">{
+        for _, v := range data </span><span class="cov0" title="0">{
+                err := dr.SetData(v)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (dr *DatabaseRepository) GetData(metricType string, metricKey string) (models.Metrics, error) <span class="cov0" title="0">{
+        return dr.dbAdapter.GetData(metricType, metricKey)
+}</span>
+
+func (dr *DatabaseRepository) GetAll() []models.Metrics <span class="cov0" title="0">{
+        return dr.dbAdapter.GetAll()
+}</span>
+
+func (dr *DatabaseRepository) SetData(metric models.Metrics) error <span class="cov0" title="0">{
+        return dr.dbAdapter.SetData(metric)
+}</span>
+
+func NewDatabaseRepository(dbAdapter config.DatabaseAdapter) *DatabaseRepository <span class="cov0" title="0">{
+        return &amp;DatabaseRepository{
+                dbAdapter: dbAdapter,
+        }
+}</span>
+
+func (dr *DatabaseRepository) Ping(ctx context.Context) error <span class="cov0" title="0">{
+        return dr.dbAdapter.CheckConnection(ctx)
+}</span>
+
+func (dr *DatabaseRepository) Open(ctx context.Context) error <span class="cov0" title="0">{
+        return dr.dbAdapter.Open(ctx)
+}</span>
+
+func (dr *DatabaseRepository) Close(ctx context.Context) error <span class="cov0" title="0">{
+        return dr.dbAdapter.Close(ctx)
+}</span>
+</pre>
+		
+		<pre class="file" id="file14" style="display: none">package repository
+
+import models "github.com/Nakohartum/practicum-metrics/internal/model"
+
+type FileRepo struct {
+        fileWorker FileWorker
+}
+
+func NewFileRepo(fileWorker FileWorker) *FileRepo <span class="cov0" title="0">{
+        return &amp;FileRepo{
+                fileWorker: fileWorker,
+        }
+}</span>
+
+func (fr *FileRepo) Ping() error <span class="cov0" title="0">{
+        return fr.fileWorker.FileExists()
+}</span>
+
+func (fr *FileRepo) WriteData(data []models.Metrics) error <span class="cov0" title="0">{
+        return fr.fileWorker.WriteData(data)
+}</span>
+
+func (fr *FileRepo) ReadData() ([]models.Metrics, error) <span class="cov0" title="0">{
+        return fr.fileWorker.ReadData()
+}</span>
+
+func (fr *FileRepo) WriteOneData(data models.Metrics) error <span class="cov0" title="0">{
+        return fr.fileWorker.WriteOneData(data)
+}</pre>
+		
+		<pre class="file" id="file15" style="display: none">package repository
+
+import (
+        "context"
+
+        models "github.com/Nakohartum/practicum-metrics/internal/model"
+)
+
+type MemRepo struct {
+        storage Storage
+        
+}
+
+func NewMemRepo(config Storage) *MemRepo <span class="cov0" title="0">{
+        return &amp;MemRepo{
+                storage: config,
+        }
+}</span>
+
+func (mr *MemRepo) GetData(metricType, key string) (models.Metrics, error) <span class="cov0" title="0">{
+        return mr.storage.GetData(metricType, key)
+}</span>
+
+func (mr *MemRepo) SetData(metricType, key, value string) error <span class="cov0" title="0">{
+        return mr.storage.SetData(metricType, key, value)
+}</span>
+
+func (mr *MemRepo) GetAll() []models.Metrics<span class="cov0" title="0">{
+        return mr.storage.GetAll()
+}</span>
+
+func (mr *MemRepo) Ping(ctx context.Context) error <span class="cov0" title="0">{
+        return mr.storage.Ping(ctx)
+}</pre>
+		
+		<pre class="file" id="file16" style="display: none">package service
+
+import (
+        "context"
+        "errors"
+        "log"
+        "strconv"
+        "time"
+
+        models "github.com/Nakohartum/practicum-metrics/internal/model"
+        "github.com/Nakohartum/practicum-metrics/internal/repository"
+)
+
+type DatabaseService struct {
+        repo *repository.DatabaseRepository
+        memRepo *repository.MemRepo
+        storeInterval time.Duration
+}
+
+func NewDatabaseService(repo *repository.DatabaseRepository, mr *repository.MemRepo, storeInterval int) *DatabaseService<span class="cov0" title="0">{
+        return &amp;DatabaseService{
+                repo: repo,
+                memRepo: mr,
+                storeInterval: time.Duration(storeInterval) * time.Second,
+        }
+}</span>
+
+
+func (s *DatabaseService) GetData(metricType, metricKey string) (models.Metrics, error) <span class="cov0" title="0">{
+        if metricKey == "" </span><span class="cov0" title="0">{
+                return models.Metrics{}, errors.New("no metric's name")
+        }</span>
+        <span class="cov0" title="0">return s.repo.GetData(metricType, metricKey)</span>
+        
+}
+
+func (s *DatabaseService) SetData(metricType, metricKey, metricValue string) error <span class="cov0" title="0">{
+        var metric models.Metrics
+        metric.MType = metricType
+        metric.ID = metricKey
+        switch metricType</span>{
+        case models.Counter:<span class="cov0" title="0">
+                val, err := strconv.ParseInt(metricValue, 10, 64)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov0" title="0">metric.Delta = &amp;val</span>
+        case models.Gauge:<span class="cov0" title="0">
+                val, err := strconv.ParseFloat(metricValue, 64)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov0" title="0">metric.Value = &amp;val</span>
+        default:<span class="cov0" title="0">
+                return errors.New("no such metric type")</span>
+        }
+        <span class="cov0" title="0">return s.repo.SetData(metric)</span>
+}
+
+func (s *DatabaseService) GetAll() []models.Metrics<span class="cov0" title="0">{
+        return s.repo.GetAll()
+}</span>
+
+func (s *DatabaseService) Ping(ctx context.Context) error <span class="cov0" title="0">{
+        return s.repo.Ping(ctx)
+}</span>
+
+
+func (s *DatabaseService) RunSaving(ctx context.Context)<span class="cov0" title="0">{
+        for </span><span class="cov0" title="0">{
+                select</span>{
+                case &lt;- ctx.Done():<span class="cov0" title="0">
+                        return</span>
+                default:<span class="cov0" title="0"></span>
+                }
+                <span class="cov0" title="0">time.Sleep(s.storeInterval)
+                data := s.memRepo.GetAll()
+
+                if len(data) == 0</span><span class="cov0" title="0">{
+                        return
+                }</span>
+                <span class="cov0" title="0">err := s.repo.SetAllData(data)
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Fatal(err)
+                }</span>
+        }
+}
+
+func (s *DatabaseService) SaveDataAfterExit(ctx context.Context) error <span class="cov0" title="0">{
+        return s.SaveAllData()
+}</span>
+
+func (s *DatabaseService) SaveAllData() error <span class="cov0" title="0">{
+        data := s.memRepo.GetAll()
+        return s.repo.SetAllData(data)
+}</pre>
+		
+		<pre class="file" id="file17" style="display: none">package service
+
+import (
+        "context"
+        "errors"
+        "log"
+        "strconv"
+        "time"
+
+        models "github.com/Nakohartum/practicum-metrics/internal/model"
+        "github.com/Nakohartum/practicum-metrics/internal/repository"
+)
+
+type FileService struct {
+        repo          *repository.FileRepo
+        memRepo       *repository.MemRepo
+        storeInterval time.Duration
+}
+
+func NewFileService(r *repository.FileRepo, mr *repository.MemRepo, storeInterval int) *FileService <span class="cov0" title="0">{
+        return &amp;FileService{
+                repo:          r,
+                memRepo:       mr,        
+                storeInterval: time.Duration(storeInterval) * time.Second,
+        }
+}</span>
+
+func (fs *FileService) WriteData(data []models.Metrics) error <span class="cov0" title="0">{
+        return fs.repo.WriteData(data)
+}</span>
+
+func (fs *FileService) GetData(metricType, metricKey string) (models.Metrics, error) <span class="cov0" title="0">{
+        values, err := fs.repo.ReadData()
+
+        if err != nil </span><span class="cov0" title="0">{
+                return models.Metrics{}, err
+        }</span>
+
+        <span class="cov0" title="0">for _, v := range values </span><span class="cov0" title="0">{
+                if v.MType == metricKey &amp;&amp; v.ID == metricKey </span><span class="cov0" title="0">{
+                        return v, nil
+                }</span>
+        }
+        <span class="cov0" title="0">return models.Metrics{}, errors.New("metric not found error")</span>
+}
+
+func (fs *FileService) GetAll() []models.Metrics <span class="cov0" title="0">{
+        values, err := fs.repo.ReadData()
+
+        if err != nil </span><span class="cov0" title="0">{
+                return make([]models.Metrics, 0)
+        }</span>
+        <span class="cov0" title="0">return values</span>
+}
+
+func (fs *FileService) SetData(metricType, metricKey, metricValue string) error <span class="cov0" title="0">{
+        var model models.Metrics
+        model.ID = metricKey
+        model.MType = metricType
+        fs.memRepo.SetData(metricType, metricKey, metricValue)
+        switch metricType </span>{
+        case models.Counter:<span class="cov0" title="0">
+                val, err := strconv.ParseInt(metricValue, 10, 64)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov0" title="0">model.Delta = &amp;val</span>
+        case models.Gauge:<span class="cov0" title="0">
+                val, err := strconv.ParseFloat(metricValue, 64)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov0" title="0">model.Value = &amp;val</span>
+        default:<span class="cov0" title="0">
+                return errors.New("no metric type")</span>
+        }
+        <span class="cov0" title="0">return fs.repo.WriteOneData(model)</span>
+}
+
+func (fs *FileService) RunSaving(ctx context.Context) <span class="cov0" title="0">{
+
+        for </span><span class="cov0" title="0">{
+                select </span>{
+                case &lt;-ctx.Done():<span class="cov0" title="0">
+                        return</span>
+                default:<span class="cov0" title="0"></span>
+                }
+                <span class="cov0" title="0">time.Sleep(fs.storeInterval)
+                data := fs.memRepo.GetAll()
+                if len(data) == 0 </span><span class="cov0" title="0">{
+                        return
+                }</span>
+                <span class="cov0" title="0">err := fs.WriteData(data)
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Fatalf("Error writing data: %v", err)
+                }</span>
+        }
+}
+
+func (fs *FileService) Ping(ctx context.Context) error <span class="cov0" title="0">{
+        _, err := fs.repo.ReadData()
+        return err
+}</span>
+
+func (fs *FileService) SaveDataAfterExit(ctx context.Context) error <span class="cov0" title="0">{
+        
+        data, err := fs.repo.ReadData()
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">err = fs.WriteData(data)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Error writing data: %v", err)
+                return err
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (fs *FileService) SaveAllData() error <span class="cov0" title="0">{
+        values := fs.memRepo.GetAll()
+        return fs.repo.WriteData(values)
+}</pre>
+		
+		<pre class="file" id="file18" style="display: none">package service
+
+import (
+        "context"
+        "errors"
+        "strconv"
+        "time"
+
+        models "github.com/Nakohartum/practicum-metrics/internal/model"
+        "github.com/Nakohartum/practicum-metrics/internal/repository"
+)
+
+type MetricsService struct {
+        repo *repository.MemRepo
+        storeInterval time.Duration
+}
+
+func NewMetricsService(r *repository.MemRepo, storeInterval int) *MetricsService <span class="cov0" title="0">{
+        return &amp;MetricsService{
+                repo: r,
+                storeInterval: time.Duration(storeInterval) * time.Second,
+        }
+}</span>
+
+func (s *MetricsService) GetData(metricType, metricKey string) (models.Metrics, error) <span class="cov0" title="0">{
+        if metricKey == "" </span><span class="cov0" title="0">{
+                return models.Metrics{}, errors.New("no metric's name")
+        }</span>
+        <span class="cov0" title="0">return s.repo.GetData(metricType, metricKey)</span>
+        
+}
+
+func (s *MetricsService) SetData(metricType, metricKey, metricValue string) error <span class="cov0" title="0">{
+        return s.repo.SetData(metricType, metricKey, metricValue)
+}</span>
+
+func (s *MetricsService) GetAll() []models.Metrics<span class="cov0" title="0">{
+        return s.repo.GetAll()
+}</span>
+
+func (s *MetricsService) Ping(ctx context.Context) error <span class="cov0" title="0">{
+        return s.repo.Ping(ctx)
+}</span>
+
+func (s *MetricsService) RunSaving(ctx context.Context)<span class="cov0" title="0">{
+        
+        for </span><span class="cov0" title="0">{
+                select</span>{
+                case &lt;-ctx.Done():<span class="cov0" title="0">
+                        return</span>
+                default:<span class="cov0" title="0"></span>
+                }
+                <span class="cov0" title="0">time.Sleep(s.storeInterval)
+                data := s.repo.GetAll()
+                for _, v := range data </span><span class="cov0" title="0">{
+                        switch v.MType</span>{
+                        case models.Counter:<span class="cov0" title="0">
+                                s.repo.SetData(v.MType, v.ID, strconv.FormatInt(*v.Delta, 10))</span>
+                        case models.Gauge:<span class="cov0" title="0">
+                                s.repo.SetData(v.MType, v.ID, strconv.FormatFloat(*v.Value, 'f', -1, 64))</span>
+                        }
+                }
+        }
+}
+
+func (s* MetricsService) SaveAllData() error <span class="cov0" title="0">{
+        return nil
+}</span>
+
+func (s *MetricsService) SaveDataAfterExit(ctx context.Context) error <span class="cov0" title="0">{
+        return nil
+}</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"log"
+	"strconv"
 	"time"
 
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
@@ -10,13 +12,15 @@ import (
 )
 
 type FileService struct {
-	repo *repository.MemRepo
+	repo          *repository.FileRepo
+	memRepo       *repository.MemRepo
 	storeInterval time.Duration
 }
 
-func NewFileService(r *repository.MemRepo, storeInterval int) *FileService {
+func NewFileService(r *repository.FileRepo, mr *repository.MemRepo, storeInterval int) *FileService {
 	return &FileService{
-		repo: r,
+		repo:          r,
+		memRepo:       mr,	
 		storeInterval: time.Duration(storeInterval) * time.Second,
 	}
 }
@@ -25,20 +29,67 @@ func (fs *FileService) WriteData(data []models.Metrics) error {
 	return fs.repo.WriteData(data)
 }
 
-func (fs *FileService) ReadData() ([]models.Metrics, error) {
-	return fs.repo.ReadData()
+func (fs *FileService) GetData(metricType, metricKey string) (models.Metrics, error) {
+	values, err := fs.repo.ReadData()
+
+	if err != nil {
+		return models.Metrics{}, err
+	}
+
+	for _, v := range values {
+		if v.MType == metricKey && v.ID == metricKey {
+			return v, nil
+		}
+	}
+	return models.Metrics{}, errors.New("metric not found error")
 }
 
-func (fs *FileService) RunSaving(ctx context.Context){
-	
+func (fs *FileService) GetAll() []models.Metrics {
+	values, err := fs.repo.ReadData()
+
+	if err != nil {
+		return make([]models.Metrics, 0)
+	}
+	return values
+}
+
+func (fs *FileService) SetData(metricType, metricKey, metricValue string) error {
+	var model models.Metrics
+	model.ID = metricKey
+	model.MType = metricType
+	fs.memRepo.SetData(metricType, metricKey, metricValue)
+	switch metricType {
+	case models.Counter:
+		val, err := strconv.ParseInt(metricValue, 10, 64)
+		if err != nil {
+			return err
+		}
+		model.Delta = &val
+	case models.Gauge:
+		val, err := strconv.ParseFloat(metricValue, 64)
+		if err != nil {
+			return err
+		}
+		model.Value = &val
+	default:
+		return errors.New("no metric type")
+	}
+	return fs.repo.WriteOneData(model)
+}
+
+func (fs *FileService) RunSaving(ctx context.Context) {
+
 	for {
-		select{
+		select {
 		case <-ctx.Done():
 			return
 		default:
 		}
 		time.Sleep(fs.storeInterval)
-		data := fs.repo.GetAll()
+		data := fs.memRepo.GetAll()
+		if len(data) == 0 {
+			return
+		}
 		err := fs.WriteData(data)
 		if err != nil {
 			log.Fatalf("Error writing data: %v", err)
@@ -46,12 +97,26 @@ func (fs *FileService) RunSaving(ctx context.Context){
 	}
 }
 
-func (fs *FileService) SaveData() error {
-	data := fs.repo.GetAll()
-	err := fs.WriteData(data)
+func (fs *FileService) Ping(ctx context.Context) error {
+	_, err := fs.repo.ReadData()
+	return err
+}
+
+func (fs *FileService) SaveDataAfterExit(ctx context.Context) error {
+	
+	data, err := fs.repo.ReadData()
+	if err != nil {
+		return err
+	}
+	err = fs.WriteData(data)
 	if err != nil {
 		log.Fatalf("Error writing data: %v", err)
 		return err
 	}
 	return nil
+}
+
+func (fs *FileService) SaveAllData() error {
+	values := fs.memRepo.GetAll()
+	return fs.repo.WriteData(values)
 }

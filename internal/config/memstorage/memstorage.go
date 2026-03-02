@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"strconv"
 
@@ -91,4 +92,8 @@ func (ms *MemStorage) GetAll() []models.Metrics{
 	}
 
 	return res
+}
+
+func (ms *MemStorage) Ping(ctx context.Context) error {
+	return ms.Ping(ctx)
 }

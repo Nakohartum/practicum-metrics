@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/Nakohartum/practicum-metrics/internal/service"
 )
 
 type gZipWriter struct {
@@ -121,18 +123,15 @@ func (w *statusWriter) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
-type fileSaver interface {
-	SaveData() error
-}
 
-func SaveAfterPostMiddleware(saver fileSaver) func(http.Handler) http.Handler {
+func SaveAfterPostMiddleware(saver service.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodPost {
 				sw := &statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
 				next.ServeHTTP(sw, r)
 				if sw.statusCode < 400 {
-					_ = saver.SaveData()
+					_ = saver.SaveAllData()
 				}
 				return
 			}
