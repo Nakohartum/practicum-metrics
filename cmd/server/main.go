@@ -142,6 +142,7 @@ func setupServer(service service.Service) http.Server {
 		r.Post("/update/{metricType}/{metricName}/{metricValue}", logger.AttachLoggingToResponse(metricsHandler.SetMetricDataHandle()))
 		r.Route("/value", func(r chi.Router) {
 			r.Post("/", logger.AttachLoggingToResponse(metricsHandler.GetMetricsByNameHandle()))
+			r.Post("", logger.AttachLoggingToResponse(metricsHandler.GetMetricsByNameHandle()))
 			r.Get("/{metricType}/{metricName}", logger.AttachLoggingToResponse(metricsHandler.GetMetricDataHandle()))
 		})
 	})
