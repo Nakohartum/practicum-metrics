@@ -3,6 +3,11 @@ package config
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/jackc/pgx/v5"
@@ -23,15 +28,49 @@ func NewPgDatabaseAdapter(connectionString string) *PgDatabaseAdapter {
 	}
 }
 
-func (dbAdapter *PgDatabaseAdapter) Open(ctx context.Context) error{
+func (dbAdapter *PgDatabaseAdapter) Open(ctx context.Context) error {
 	connection, err := pgx.Connect(ctx, dbAdapter.connectionString)
-
 	if err != nil {
 		return err
 	}
 	dbAdapter.db = connection
+
+	if err := dbAdapter.runMigrations(ctx, "migrations"); err != nil {
+		return err
+	}
 	return nil
 }
+
+func (dbAdapter *PgDatabaseAdapter) runMigrations(ctx context.Context, dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	files := make([]string, 0)
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasSuffix(name, ".up.sql") {
+			files = append(files, filepath.Join(dir, name))
+		}
+	}
+	sort.Strings(files)
+
+	for _, f := range files {
+		sqlBytes, err := os.ReadFile(f)
+		if err != nil {
+			return fmt.Errorf("read migration %s: %w", f, err)
+		}
+		if _, err := dbAdapter.db.Exec(ctx, string(sqlBytes)); err != nil {
+			return fmt.Errorf("apply migration %s: %w", f, err)
+		}
+	}
+	return nil
+}
+
 
 func (dbAdapter *PgDatabaseAdapter) Close(ctx context.Context) error{
 	if dbAdapter.db == nil {
