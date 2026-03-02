@@ -60,6 +60,9 @@ func NewFileReader(filename string) (*FileReader, error) {
 func (fr *FileReader) ReadData() ([]models.Metrics, error) {
 	var data []models.Metrics
 	err := fr.decoder.Decode(&data)
+	if err != nil{
+		return make([]models.Metrics, 0), nil
+	}
 	return data, err
 }
 
