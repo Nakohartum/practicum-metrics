@@ -49,6 +49,9 @@ func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error {
 	var count int64
 	row := dbAdapter.db.QueryRow(context.Background(), "SELECT COUNT(*) FROM metric where id = $1 and metric_type = $2", model.ID, model.MType)
 	err := row.Scan(count)
+	if err != nil {
+		return err
+	}
 	if count == 0 {
 		_, err = dbAdapter.db.Exec(context.Background(), "INSERT INTO metric(id, metric_type, delta, value) VALUES($1, $2, $3, $4)", model.ID, model.MType, model.Delta, model.Value)
 	} else {

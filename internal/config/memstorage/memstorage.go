@@ -95,5 +95,5 @@ func (ms *MemStorage) GetAll() []models.Metrics{
 }
 
 func (ms *MemStorage) Ping(ctx context.Context) error {
-	return ms.Ping(ctx)
+	return nil
 }
