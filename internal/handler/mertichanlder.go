@@ -56,13 +56,21 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 				http.Error(w, "delta value is required for counter type", http.StatusBadRequest)
 				return
 			}
-			mh.service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))
+			err := mh.service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))
+			if err != nil{
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+    			return
+			}
 		case models.Gauge:
 			if metric.Value == nil {
 				http.Error(w, "value is required for gauge type", http.StatusBadRequest)
 				return
 			}
-			mh.service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
+			err := mh.service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
+			if err != nil{
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+    			return
+			}
 		}
 		
 		w.WriteHeader(http.StatusOK)

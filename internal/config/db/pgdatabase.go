@@ -87,7 +87,7 @@ func (dbAdapter *PgDatabaseAdapter) CheckConnection(ctx context.Context) error{
 func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error {
 	var count int64
 	row := dbAdapter.db.QueryRow(context.Background(), "SELECT COUNT(*) FROM metric where id = $1 and metric_type = $2", model.ID, model.MType)
-	err := row.Scan(count)
+	err := row.Scan(&count)
 	if err != nil {
 		return err
 	}
