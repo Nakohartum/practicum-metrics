@@ -37,7 +37,7 @@ func (fs *FileService) GetData(metricType, metricKey string) (models.Metrics, er
 	}
 
 	for _, v := range values {
-		if v.MType == metricKey && v.ID == metricKey {
+		if v.MType == metricType && v.ID == metricKey {
 			return v, nil
 		}
 	}

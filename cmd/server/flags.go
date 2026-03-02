@@ -49,7 +49,7 @@ var configData = Config{
 	},
 	FileWork: FileWork{
 		storeInterval: 2,
-		fileStoragePath: "file.json",
+		fileStoragePath: "",
 		restore: false,
 	},
 	DatabaseAddress: DatabaseAddress{
@@ -61,7 +61,7 @@ func parseFlags() {
 	
 	flag.Var(&configData.Address, "a", "server address (host:port)")
 	flag.Int64Var(&configData.FileWork.storeInterval, "i", 2, "store interval in seconds")
-	flag.StringVar(&configData.FileWork.fileStoragePath, "f", "file.json", "path to store data")
+	flag.StringVar(&configData.FileWork.fileStoragePath, "f", "", "path to store data")
 	flag.BoolVar(&configData.FileWork.restore, "r", false, "true for restore, false for not")
 	flag.StringVar(&configData.DatabaseAddress.connectionString, "d", "", "connection string for database")
 	flag.Parse()
