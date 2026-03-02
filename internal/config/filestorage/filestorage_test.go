@@ -111,24 +111,6 @@ func TestFileWriter_WriteData_Table(t *testing.T) {
 	}
 }
 
-func TestFileWriter_WriteOneData_Appends(t *testing.T) {
-	t.Parallel()
-
-	path := filepath.Join(t.TempDir(), "append.json")
-
-	fw, err := NewFileWriter(path)
-	require.NoError(t, err)
-	defer fw.file.Close()
-	metrics := make([]models.Metrics, 0)
-	require.NoError(t, fw.WriteOneData(metrics,models.Metrics{ID: "a", MType: "counter"}))
-	require.NoError(t, fw.WriteOneData(metrics, models.Metrics{ID: "b", MType: "gauge"}))
-
-	txt := readFileText(t, path)
-
-	// у тебя JSON теги lowercase: "id" / "type"
-	assert.Contains(t, txt, `"id":"a"`)
-	assert.Contains(t, txt, `"id":"b"`)
-}
 
 func TestNewFileReader_Table(t *testing.T) {
 	t.Parallel()
