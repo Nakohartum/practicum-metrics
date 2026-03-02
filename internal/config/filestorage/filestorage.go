@@ -36,11 +36,9 @@ func (fw *FileWriter) WriteData (data []models.Metrics) error {
 	return fw.encoder.Encode(data)
 }
 
-func (fw *FileWriter) WriteOneData (data models.Metrics) error {
-	if _, err := fw.file.Seek(0, io.SeekEnd); err != nil { 
-        return err
-    }
-    return fw.encoder.Encode(data)
+func (fw *FileWriter) WriteOneData (models []models.Metrics, data models.Metrics) error {
+	models = append(models, data)
+    return fw.encoder.Encode(models)
 }
 
 type FileReader struct {
@@ -87,7 +85,11 @@ func (fm *FileManager) ReadData() ([]models.Metrics, error) {
 }
 
 func (fm *FileManager) WriteOneData(data models.Metrics) error {
-	return fm.fileWriter.WriteOneData(data)
+	metrics, err := fm.fileReader.ReadData()
+	if err != nil {
+		return err
+	}
+	return fm.fileWriter.WriteOneData(metrics, data)
 }
 
 func (fm *FileManager) FileExists() error {
