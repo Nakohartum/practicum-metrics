@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
@@ -37,7 +38,7 @@ func (fw *FileWriter) WriteData (data []models.Metrics) error {
 
 func (fw *FileWriter) WriteOneData (models []models.Metrics, data models.Metrics) error {
 	models = append(models, data)
-    return fw.encoder.Encode(models)
+	return fw.WriteData(models)
 }
 
 type FileReader struct {
@@ -58,10 +59,14 @@ func NewFileReader(filename string) (*FileReader, error) {
 }
 
 func (fr *FileReader) ReadData() ([]models.Metrics, error) {
+	fr.file.Seek(0, 0)
 	var data []models.Metrics
 	err := fr.decoder.Decode(&data)
 	if err != nil{
-		return make([]models.Metrics, 0), nil
+		if errors.Is(err, io.EOF){
+			return make([]models.Metrics, 0), nil
+		}
+		return nil, err
 	}
 	return data, err
 }
