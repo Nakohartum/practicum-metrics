@@ -144,9 +144,10 @@ func setupServer(service service.Service) http.Server {
 			r.Post("/", logger.AttachLoggingToResponse(metricsHandler.GetMetricsByNameHandle()))
 			r.Get("/{metricType}/{metricName}", logger.AttachLoggingToResponse(metricsHandler.GetMetricDataHandle()))
 		})
-		r.Post("/value/", logger.AttachLoggingToResponse(metricsHandler.GetMetricsByNameHandle()))
+		
 	})
 
+	router.Post("/value/", logger.AttachLoggingToResponse(metricsHandler.GetMetricsByNameHandle()))
 	if configData.FileWork.storeInterval != 0 {
 		go service.RunSaving(context.Background())
 	}
