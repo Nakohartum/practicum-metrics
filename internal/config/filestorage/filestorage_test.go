@@ -119,9 +119,9 @@ func TestFileWriter_WriteOneData_Appends(t *testing.T) {
 	fw, err := NewFileWriter(path)
 	require.NoError(t, err)
 	defer fw.file.Close()
-
-	require.NoError(t, fw.WriteOneData(models.Metrics{ID: "a", MType: "counter"}))
-	require.NoError(t, fw.WriteOneData(models.Metrics{ID: "b", MType: "gauge"}))
+	metrics := make([]models.Metrics, 0)
+	require.NoError(t, fw.WriteOneData(metrics,models.Metrics{ID: "a", MType: "counter"}))
+	require.NoError(t, fw.WriteOneData(metrics, models.Metrics{ID: "b", MType: "gauge"}))
 
 	txt := readFileText(t, path)
 

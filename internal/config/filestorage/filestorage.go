@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"os"
 
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
