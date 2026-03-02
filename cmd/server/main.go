@@ -78,7 +78,10 @@ func setupMemService(repo *repository.MemRepo) *service.MetricsService {
 
 func setupDatabaseService(memRepo *repository.MemRepo) *service.DatabaseService {
 	dbAdapter := dbConfig.NewPgDatabaseAdapter(configData.DatabaseAddress.connectionString)
-	dbAdapter.Open(context.Background())
+	err := dbAdapter.Open(context.Background())
+	if err != nil{
+		log.Fatal(err)
+	}
 	repo := repository.NewDatabaseRepository(dbAdapter)
 	dbService := service.NewDatabaseService(repo, memRepo, int(configData.FileWork.storeInterval))
 	return dbService
