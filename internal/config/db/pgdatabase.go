@@ -94,7 +94,22 @@ func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error {
 	if count == 0 {
 		_, err = dbAdapter.db.Exec(context.Background(), "INSERT INTO metric(id, metric_type, delta, value) VALUES($1, $2, $3, $4)", model.ID, model.MType, model.Delta, model.Value)
 	} else {
-		_, err = dbAdapter.db.Exec(context.Background(), "UPDATE metric SET delta = $1, value = $2 where id = $3 and metric_type = $4", model.Delta, model.Value, model.ID, model.MType)
+		switch model.MType {
+		case models.Counter:
+			_, err = dbAdapter.db.Exec(
+				context.Background(),
+				"UPDATE metric SET delta = COALESCE(delta, 0) + $1 WHERE id = $2 AND metric_type = $3",
+				model.Delta, model.ID, model.MType,
+			)
+		case models.Gauge:
+			_, err = dbAdapter.db.Exec(
+				context.Background(),
+				"UPDATE metric SET value = $1 WHERE id = $2 AND metric_type = $3",
+				model.Value, model.ID, model.MType,
+			)
+		default:
+			return errors.New("no such metric type")
+		}
 	}
 	return err
 }

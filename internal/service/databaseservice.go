@@ -96,5 +96,25 @@ func (s *DatabaseService) SaveAllData() error {
 }
 
 func (s *DatabaseService) SetDataUsingMetrics(metrics []models.Metrics) error {
-	return s.repo.SetAllData(metrics)
+	for _, metric := range metrics {
+		switch metric.MType {
+		case models.Counter:
+			if metric.Delta == nil {
+				return errors.New("delta value is required for counter type")
+			}
+			if err := s.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10)); err != nil {
+				return err
+			}
+		case models.Gauge:
+			if metric.Value == nil {
+				return errors.New("value is required for gauge type")
+			}
+			if err := s.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64)); err != nil {
+				return err
+			}
+		default:
+			return errors.New("no such metric type")
+		}
+	}
+	return nil
 }

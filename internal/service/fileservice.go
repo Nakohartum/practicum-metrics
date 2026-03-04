@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strconv"
 	"time"
 
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
@@ -108,5 +109,25 @@ func (fs *FileService) SaveAllData() error {
 }
 
 func (fs* FileService) SetDataUsingMetrics(metrics []models.Metrics) error {
-	return fs.repo.WriteData(metrics)
+	for _, metric := range metrics {
+		switch metric.MType {
+		case models.Counter:
+			if metric.Delta == nil {
+				return errors.New("delta value is required for counter type")
+			}
+			if err := fs.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10)); err != nil {
+				return err
+			}
+		case models.Gauge:
+			if metric.Value == nil {
+				return errors.New("value is required for gauge type")
+			}
+			if err := fs.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64)); err != nil {
+				return err
+			}
+		default:
+			return errors.New("no such metric type")
+		}
+	}
+	return nil
 }
