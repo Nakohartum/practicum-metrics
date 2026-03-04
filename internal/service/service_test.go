@@ -93,7 +93,6 @@ func TestSetDataUsingMetrics(t *testing.T) {
 		name      string
 		input     []models.Metrics
 		wantErr   bool
-		wantPanic bool
 	}{
 		{
 			name: "sets counter and gauge",
@@ -103,9 +102,9 @@ func TestSetDataUsingMetrics(t *testing.T) {
 			},
 		},
 		{
-			name:      "nil counter delta panics in current implementation",
+			name:    "nil counter delta returns error",
 			input:     []models.Metrics{{ID: "c2", MType: models.Counter, Delta: nil}},
-			wantPanic: true,
+			wantErr: true,
 		},
 	}
 
@@ -114,13 +113,6 @@ func TestSetDataUsingMetrics(t *testing.T) {
 			store := memconfig.NewMemStubStorage()
 			repo := repository.NewMemRepo(store)
 			svc := NewMetricsService(repo, 1)
-
-			if tt.wantPanic {
-				assert.Panics(t, func() {
-					_ = svc.SetDataUsingMetrics(tt.input)
-				})
-				return
-			}
 
 			err := svc.SetDataUsingMetrics(tt.input)
 			if tt.wantErr {
