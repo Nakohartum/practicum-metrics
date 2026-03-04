@@ -279,10 +279,23 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 			}
 			metrics = []models.Metrics{single}
 		}
-		err = mh.service.SetDataUsingMetrics(metrics)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+		for _, metric := range metrics {
+			switch metric.MType {
+			case models.Counter:
+				if metric.Delta == nil {
+					continue
+				}
+				if err := mh.service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10)); err != nil {
+					continue
+				}
+			case models.Gauge:
+				if metric.Value == nil {
+					continue
+				}
+				if err := mh.service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64)); err != nil {
+					continue
+				}
+			}
 		}
 		w.WriteHeader(http.StatusOK)
 	}
