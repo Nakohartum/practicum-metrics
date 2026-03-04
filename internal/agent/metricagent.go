@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"runtime"
 	"time"
 
@@ -21,8 +22,8 @@ type MetricsAgent struct {
 	ReportInterval time.Duration
 	gaugeMetrics   map[string]float64
 	counterMetrics map[string]int64
-	client *resty.Client
-	sleep func(time.Duration)
+	client         *resty.Client
+	sleep          func(time.Duration)
 }
 
 func NewAgentMetrics(pollInterval, reportInterval int) *MetricsAgent {
@@ -31,7 +32,7 @@ func NewAgentMetrics(pollInterval, reportInterval int) *MetricsAgent {
 		ReportInterval: time.Duration(reportInterval * int(time.Second)),
 		gaugeMetrics:   make(map[string]float64),
 		counterMetrics: make(map[string]int64),
-		client: resty.New().SetHeader("Content-Type", "application/json"),
+		client:         resty.New().SetHeader("Content-Type", "application/json"),
 	}
 	internalLogger.AttachLoggingToRequest(agent.client)
 	return &agent
@@ -42,7 +43,7 @@ func (mA *MetricsAgent) setRuntimeGaugeMetrics() {
 
 	runtime.ReadMemStats(&m)
 
-	mA.setGaugeMetric("Alloc",float64(m.Alloc))
+	mA.setGaugeMetric("Alloc", float64(m.Alloc))
 	mA.setGaugeMetric("BuckHashSys", float64(m.BuckHashSys))
 	mA.setGaugeMetric("Frees", float64(m.Frees))
 	mA.setGaugeMetric("GCCPUFraction", m.GCCPUFraction)
@@ -69,7 +70,7 @@ func (mA *MetricsAgent) setRuntimeGaugeMetrics() {
 	mA.setGaugeMetric("StackSys", float64(m.StackSys))
 	mA.setGaugeMetric("Sys", float64(m.Sys))
 	mA.setGaugeMetric("TotalAlloc", float64(m.TotalAlloc))
-	mA.setGaugeMetric("RandomValue", rand.Float64() * 100)
+	mA.setGaugeMetric("RandomValue", rand.Float64()*100)
 }
 
 func (mA *MetricsAgent) setGaugeMetric(metricName string, value float64) {
@@ -82,13 +83,13 @@ func (mA *MetricsAgent) setCounterMetrics() {
 
 type metricsBytes = []byte
 
-func (mA *MetricsAgent) sendGaugeMetrics() []metricsBytes{
+func (mA *MetricsAgent) sendGaugeMetrics() []metricsBytes {
 	metrics := make([]metricsBytes, 0)
-	
-	for k, v := range mA.gaugeMetrics{
+
+	for k, v := range mA.gaugeMetrics {
 
 		metric := models.Metrics{
-			ID: k,
+			ID:    k,
 			MType: "gauge",
 			Value: &v,
 		}
@@ -97,24 +98,19 @@ func (mA *MetricsAgent) sendGaugeMetrics() []metricsBytes{
 
 		if err != nil {
 			log.Println(err)
+			continue
 		}
-
-		compressedData, err := compressData(jsonData)
-
-		if err != nil {
-			log.Println(err)
-		}
-		metrics = append(metrics, compressedData)
+		metrics = append(metrics, jsonData)
 	}
 	return metrics
 }
 
-func (mA *MetricsAgent) sendCounterMetrics() []metricsBytes{
+func (mA *MetricsAgent) sendCounterMetrics() []metricsBytes {
 	metrics := make([]metricsBytes, 0)
-	for k, v := range mA.counterMetrics{
+	for k, v := range mA.counterMetrics {
 
 		metric := models.Metrics{
-			ID: k,
+			ID:    k,
 			MType: "counter",
 			Delta: &v,
 		}
@@ -123,15 +119,9 @@ func (mA *MetricsAgent) sendCounterMetrics() []metricsBytes{
 
 		if err != nil {
 			log.Println(err)
+			continue
 		}
-		
-		compressedData, err := compressData(jsonData)
-
-		if err != nil {
-			log.Println(err)
-		}
-
-		metrics = append(metrics, compressedData)
+		metrics = append(metrics, jsonData)
 	}
 	return metrics
 }
@@ -148,13 +138,29 @@ func (mA *MetricsAgent) sendMetrics(path string) {
 		}
 
 		for _, v := range metricsToSend[start:end] {
+			compressedData, err := compressData(v)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
 			resp, err := mA.client.R().
 				SetHeader("Content-Type", "application/json").
 				SetHeader("Content-Encoding", "gzip").
-				SetBody(v).Post(endpoint)
+				SetBody(compressedData).
+				Post(endpoint)
+
+			// Keep gzip as primary mode, but fallback for servers that
+			// don't support compressed request bodies.
+			if err != nil || resp.StatusCode() >= http.StatusBadRequest {
+				resp, err = mA.client.R().
+					SetHeader("Content-Type", "application/json").
+					SetBody(v).
+					Post(endpoint)
+			}
 			if err != nil {
-				log.Fatal(err.Error())
-				return
+				log.Println(err.Error())
+				continue
 			}
 			log.Print(resp)
 		}
@@ -168,10 +174,9 @@ func (mA *MetricsAgent) Run(ctx context.Context, host string) {
 	elapsed := time.Duration(0)
 	endpoint := host
 
-
 	for {
-		select{
-		case <- ctx.Done():
+		select {
+		case <-ctx.Done():
 			return
 		default:
 		}
