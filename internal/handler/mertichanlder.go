@@ -33,18 +33,18 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-			return 
+			return
 		}
 
 		if err := json.Unmarshal(buf.Bytes(), &metric); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-			return 
+			return
 		}
 		if metric.ID == "" {
 			http.Error(w, "no metric's name", http.StatusBadRequest)
 			return
 		}
-		if metric.MType == ""{
+		if metric.MType == "" {
 			http.Error(w, "no metric's type", http.StatusBadRequest)
 			return
 		}
@@ -55,9 +55,9 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 				return
 			}
 			err := mh.service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))
-			if err != nil{
+			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
-    			return
+				return
 			}
 		case models.Gauge:
 			if metric.Value == nil {
@@ -65,12 +65,12 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 				return
 			}
 			err := mh.service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
-			if err != nil{
+			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
-    			return
+				return
 			}
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 	}
 	return http.HandlerFunc(fun)
@@ -91,7 +91,7 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 		}
 		if metricToSearch.ID == "" || metricToSearch.MType == "" {
 			http.Error(w, "metric's name and type are required", http.StatusBadRequest)
-			return 
+			return
 		}
 		metricData, err := mh.service.GetData(metricToSearch.MType, metricToSearch.ID)
 		if err != nil {
@@ -104,15 +104,14 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 			http.Error(w, "error marshaling response data", http.StatusInternalServerError)
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(responseData)
-		
+
 	}
 	return http.HandlerFunc(fun)
 }
-
 
 func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +139,7 @@ func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 	return http.HandlerFunc(fun)
 }
 
-func (mh *MetricsHandler) GetMetricDataHandle() http.Handler{
+func (mh *MetricsHandler) GetMetricDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -152,7 +151,7 @@ func (mh *MetricsHandler) GetMetricDataHandle() http.Handler{
 
 		if metricName == "" || metricType == "" {
 			http.Error(w, "no metric found", http.StatusNotFound)
-			return 
+			return
 		}
 
 		metricData, err := mh.service.GetData(metricType, metricName)
@@ -162,18 +161,17 @@ func (mh *MetricsHandler) GetMetricDataHandle() http.Handler{
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		
-		switch metricType{
+
+		switch metricType {
 		case models.Counter:
 			w.Write([]byte(strconv.FormatInt(*metricData.Delta, 10)))
 		case models.Gauge:
 			w.Write([]byte(strconv.FormatFloat(*metricData.Value, 'f', -1, 64)))
 		}
-		
+
 	}
 	return http.HandlerFunc(fun)
 }
-
 
 type PageHandler struct {
 	service repository.Storage
@@ -240,14 +238,13 @@ func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
-func (mh *MetricsHandler) Ping(ctx context.Context) http.Handler{
-	fun := func (w http.ResponseWriter, r *http.Request)  {
+func (mh *MetricsHandler) Ping(ctx context.Context) http.Handler {
+	fun := func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		
+
 		err := mh.service.Ping(ctx)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -259,10 +256,10 @@ func (mh *MetricsHandler) Ping(ctx context.Context) http.Handler{
 }
 
 func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
-	fun := func (w http.ResponseWriter, r *http.Request)  {
+	fun := func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return 
+			return
 		}
 		var metrics []models.Metrics
 		var buf bytes.Buffer
@@ -270,7 +267,7 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 		_, err := buf.ReadFrom(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-			return 
+			return
 		}
 
 		// Accept both batch array and single metric payload.
@@ -285,7 +282,7 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 		err = mh.service.SetDataUsingMetrics(metrics)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-			return 
+			return
 		}
 		w.WriteHeader(http.StatusOK)
 	}

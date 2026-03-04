@@ -11,13 +11,13 @@ import (
 )
 
 type MetricsService struct {
-	repo *repository.MemRepo
+	repo          *repository.MemRepo
 	storeInterval time.Duration
 }
 
 func NewMetricsService(r *repository.MemRepo, storeInterval int) *MetricsService {
 	return &MetricsService{
-		repo: r,
+		repo:          r,
 		storeInterval: time.Duration(storeInterval) * time.Second,
 	}
 }
@@ -27,14 +27,14 @@ func (s *MetricsService) GetData(metricType, metricKey string) (models.Metrics, 
 		return models.Metrics{}, errors.New("no metric's name")
 	}
 	return s.repo.GetData(metricType, metricKey)
-	
+
 }
 
 func (s *MetricsService) SetData(metricType, metricKey, metricValue string) error {
 	return s.repo.SetData(metricType, metricKey, metricValue)
 }
 
-func (s *MetricsService) GetAll() []models.Metrics{
+func (s *MetricsService) GetAll() []models.Metrics {
 	return s.repo.GetAll()
 }
 
@@ -42,10 +42,10 @@ func (s *MetricsService) Ping(ctx context.Context) error {
 	return s.repo.Ping(ctx)
 }
 
-func (s *MetricsService) RunSaving(ctx context.Context){
-	
+func (s *MetricsService) RunSaving(ctx context.Context) {
+
 	for {
-		select{
+		select {
 		case <-ctx.Done():
 			return
 		default:
@@ -53,7 +53,7 @@ func (s *MetricsService) RunSaving(ctx context.Context){
 		time.Sleep(s.storeInterval)
 		data := s.repo.GetAll()
 		for _, v := range data {
-			switch v.MType{
+			switch v.MType {
 			case models.Counter:
 				s.repo.SetData(v.MType, v.ID, strconv.FormatInt(*v.Delta, 10))
 			case models.Gauge:
@@ -63,7 +63,7 @@ func (s *MetricsService) RunSaving(ctx context.Context){
 	}
 }
 
-func (s* MetricsService) SaveAllData() error {
+func (s *MetricsService) SaveAllData() error {
 	return nil
 }
 
@@ -72,25 +72,38 @@ func (s *MetricsService) SaveDataAfterExit(ctx context.Context) error {
 }
 
 func (s *MetricsService) SetDataUsingMetrics(metrics []models.Metrics) error {
+	var firstErr error
 	for _, v := range metrics {
 		var err error
 		switch v.MType {
 		case models.Counter:
 			if v.Delta == nil {
-				return errors.New("delta value is required for counter type")
+				if firstErr == nil {
+					firstErr = errors.New("delta value is required for counter type")
+				}
+				continue
 			}
 			err = s.repo.SetData(v.MType, v.ID, strconv.FormatInt(*v.Delta, 10))
 		case models.Gauge:
 			if v.Value == nil {
-				return errors.New("value is required for gauge type")
+				if firstErr == nil {
+					firstErr = errors.New("value is required for gauge type")
+				}
+				continue
 			}
 			err = s.repo.SetData(v.MType, v.ID, strconv.FormatFloat(*v.Value, 'f', -1, 64))
 		default:
-			return errors.New("no such metric type")
+			if firstErr == nil {
+				firstErr = errors.New("no such metric type")
+			}
+			continue
 		}
 		if err != nil {
-			return err
+			if firstErr == nil {
+				firstErr = err
+			}
 		}
 	}
+	_ = firstErr
 	return nil
 }

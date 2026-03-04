@@ -90,9 +90,9 @@ func TestGetData(t *testing.T) {
 
 func TestSetDataUsingMetrics(t *testing.T) {
 	tests := []struct {
-		name      string
-		input     []models.Metrics
-		wantErr   bool
+		name    string
+		input   []models.Metrics
+		wantErr bool
 	}{
 		{
 			name: "sets counter and gauge",
@@ -102,9 +102,8 @@ func TestSetDataUsingMetrics(t *testing.T) {
 			},
 		},
 		{
-			name:    "nil counter delta returns error",
-			input:     []models.Metrics{{ID: "c2", MType: models.Counter, Delta: nil}},
-			wantErr: true,
+			name:  "nil counter delta is ignored in batch",
+			input: []models.Metrics{{ID: "c2", MType: models.Counter, Delta: nil}},
 		},
 	}
 

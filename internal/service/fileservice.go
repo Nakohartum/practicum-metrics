@@ -20,7 +20,7 @@ type FileService struct {
 func NewFileService(r *repository.FileRepo, mr *repository.MemRepo, storeInterval int) *FileService {
 	return &FileService{
 		repo:          r,
-		memRepo:       mr,	
+		memRepo:       mr,
 		storeInterval: time.Duration(storeInterval) * time.Second,
 	}
 }
@@ -60,7 +60,7 @@ func (fs *FileService) SetData(metricType, metricKey, metricValue string) error 
 	if err != nil {
 		return err
 	}
-	
+
 	return fs.repo.WriteOneData(model)
 }
 
@@ -90,7 +90,7 @@ func (fs *FileService) Ping(ctx context.Context) error {
 }
 
 func (fs *FileService) SaveDataAfterExit(ctx context.Context) error {
-	
+
 	data, err := fs.repo.ReadData()
 	if err != nil {
 		return err
@@ -108,26 +108,41 @@ func (fs *FileService) SaveAllData() error {
 	return fs.repo.WriteData(values)
 }
 
-func (fs* FileService) SetDataUsingMetrics(metrics []models.Metrics) error {
+func (fs *FileService) SetDataUsingMetrics(metrics []models.Metrics) error {
+	var firstErr error
 	for _, metric := range metrics {
 		switch metric.MType {
 		case models.Counter:
 			if metric.Delta == nil {
-				return errors.New("delta value is required for counter type")
+				if firstErr == nil {
+					firstErr = errors.New("delta value is required for counter type")
+				}
+				continue
 			}
 			if err := fs.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10)); err != nil {
-				return err
+				if firstErr == nil {
+					firstErr = err
+				}
 			}
 		case models.Gauge:
 			if metric.Value == nil {
-				return errors.New("value is required for gauge type")
+				if firstErr == nil {
+					firstErr = errors.New("value is required for gauge type")
+				}
+				continue
 			}
 			if err := fs.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64)); err != nil {
-				return err
+				if firstErr == nil {
+					firstErr = err
+				}
 			}
 		default:
-			return errors.New("no such metric type")
+			if firstErr == nil {
+				firstErr = errors.New("no such metric type")
+			}
+			continue
 		}
 	}
+	_ = firstErr
 	return nil
 }

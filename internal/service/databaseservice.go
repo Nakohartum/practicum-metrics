@@ -12,33 +12,32 @@ import (
 )
 
 type DatabaseService struct {
-	repo *repository.DatabaseRepository
-	memRepo *repository.MemRepo
+	repo          *repository.DatabaseRepository
+	memRepo       *repository.MemRepo
 	storeInterval time.Duration
 }
 
-func NewDatabaseService(repo *repository.DatabaseRepository, mr *repository.MemRepo, storeInterval int) *DatabaseService{
+func NewDatabaseService(repo *repository.DatabaseRepository, mr *repository.MemRepo, storeInterval int) *DatabaseService {
 	return &DatabaseService{
-		repo: repo,
-		memRepo: mr,
+		repo:          repo,
+		memRepo:       mr,
 		storeInterval: time.Duration(storeInterval) * time.Second,
 	}
 }
-
 
 func (s *DatabaseService) GetData(metricType, metricKey string) (models.Metrics, error) {
 	if metricKey == "" {
 		return models.Metrics{}, errors.New("no metric's name")
 	}
 	return s.repo.GetData(metricType, metricKey)
-	
+
 }
 
 func (s *DatabaseService) SetData(metricType, metricKey, metricValue string) error {
 	var metric models.Metrics
 	metric.MType = metricType
 	metric.ID = metricKey
-	switch metricType{
+	switch metricType {
 	case models.Counter:
 		val, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
@@ -57,7 +56,7 @@ func (s *DatabaseService) SetData(metricType, metricKey, metricValue string) err
 	return s.repo.SetData(metric)
 }
 
-func (s *DatabaseService) GetAll() []models.Metrics{
+func (s *DatabaseService) GetAll() []models.Metrics {
 	return s.repo.GetAll()
 }
 
@@ -65,18 +64,17 @@ func (s *DatabaseService) Ping(ctx context.Context) error {
 	return s.repo.Ping(ctx)
 }
 
-
-func (s *DatabaseService) RunSaving(ctx context.Context){
+func (s *DatabaseService) RunSaving(ctx context.Context) {
 	for {
-		select{
-		case <- ctx.Done():
+		select {
+		case <-ctx.Done():
 			return
 		default:
 		}
 		time.Sleep(s.storeInterval)
 		data := s.memRepo.GetAll()
 
-		if len(data) == 0{
+		if len(data) == 0 {
 			return
 		}
 		err := s.repo.SetAllData(data)
@@ -96,25 +94,40 @@ func (s *DatabaseService) SaveAllData() error {
 }
 
 func (s *DatabaseService) SetDataUsingMetrics(metrics []models.Metrics) error {
+	var firstErr error
 	for _, metric := range metrics {
 		switch metric.MType {
 		case models.Counter:
 			if metric.Delta == nil {
-				return errors.New("delta value is required for counter type")
+				if firstErr == nil {
+					firstErr = errors.New("delta value is required for counter type")
+				}
+				continue
 			}
 			if err := s.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10)); err != nil {
-				return err
+				if firstErr == nil {
+					firstErr = err
+				}
 			}
 		case models.Gauge:
 			if metric.Value == nil {
-				return errors.New("value is required for gauge type")
+				if firstErr == nil {
+					firstErr = errors.New("value is required for gauge type")
+				}
+				continue
 			}
 			if err := s.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64)); err != nil {
-				return err
+				if firstErr == nil {
+					firstErr = err
+				}
 			}
 		default:
-			return errors.New("no such metric type")
+			if firstErr == nil {
+				firstErr = errors.New("no such metric type")
+			}
+			continue
 		}
 	}
+	_ = firstErr
 	return nil
 }
