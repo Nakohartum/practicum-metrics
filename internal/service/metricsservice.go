@@ -76,9 +76,17 @@ func (s *MetricsService) SetDataUsingMetrics(metrics []models.Metrics) error {
 		var err error
 		switch v.MType {
 		case models.Counter:
+			if v.Delta == nil {
+				return errors.New("delta value is required for counter type")
+			}
 			err = s.repo.SetData(v.MType, v.ID, strconv.FormatInt(*v.Delta, 10))
 		case models.Gauge:
+			if v.Value == nil {
+				return errors.New("value is required for gauge type")
+			}
 			err = s.repo.SetData(v.MType, v.ID, strconv.FormatFloat(*v.Value, 'f', -1, 64))
+		default:
+			return errors.New("no such metric type")
 		}
 		if err != nil {
 			return err

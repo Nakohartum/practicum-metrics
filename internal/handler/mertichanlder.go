@@ -272,15 +272,22 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return 
 		}
+
+		// Accept both batch array and single metric payload.
 		if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return 
+			var single models.Metrics
+			if errSingle := json.Unmarshal(buf.Bytes(), &single); errSingle != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			metrics = []models.Metrics{single}
 		}
 		err = mh.service.SetDataUsingMetrics(metrics)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return 
 		}
+		w.WriteHeader(http.StatusOK)
 	}
 
 	return http.HandlerFunc(fun)
