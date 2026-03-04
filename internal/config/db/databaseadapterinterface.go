@@ -12,5 +12,6 @@ type DatabaseAdapter interface {
 	SetData(metric models.Metrics) error
 	GetAll() []models.Metrics
 	GetData(metricType string, metricKey string) (models.Metrics, error) 
+	SetMultipleDataViaTransaction(context.Context, []models.Metrics) error
 }
 

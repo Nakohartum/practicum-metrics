@@ -14,4 +14,5 @@ type Service interface {
 	RunSaving(ctx context.Context)
 	Ping(context.Context) error
 	SaveDataAfterExit(context.Context) error
+	SetDataUsingMetrics(metrics []models.Metrics) error
 }

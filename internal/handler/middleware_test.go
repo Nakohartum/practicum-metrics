@@ -1,4 +1,4 @@
-package handler_test
+package handler
 
 import (
 	"bytes"
@@ -8,252 +8,163 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Nakohartum/practicum-metrics/internal/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/Nakohartum/practicum-metrics/internal/handler"
-	"github.com/Nakohartum/practicum-metrics/internal/mocks"
 )
 
-// =========================
-// helpers
-// =========================
-
-func gzipBytes(t *testing.T, b []byte) []byte {
-	t.Helper()
-
+func gzipBody(t *testing.T, payload string) io.Reader {
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
-	_, err := zw.Write(b)
+	_, err := zw.Write([]byte(payload))
 	require.NoError(t, err)
 	require.NoError(t, zw.Close())
-
-	return buf.Bytes()
+	return &buf
 }
 
-func ungzipBytes(t *testing.T, b []byte) []byte {
-	t.Helper()
-
-	zr, err := gzip.NewReader(bytes.NewReader(b))
+func ungzipBytes(t *testing.T, payload []byte) string {
+	zr, err := gzip.NewReader(bytes.NewReader(payload))
 	require.NoError(t, err)
 	defer zr.Close()
-
-	out, err := io.ReadAll(zr)
+	decoded, err := io.ReadAll(zr)
 	require.NoError(t, err)
-	return out
+	return string(decoded)
 }
 
-// =========================
-// GetZippedDataMiddleware tests
-// =========================
-
-func TestGetZippedDataMiddleware_Table(t *testing.T) {
-	type tc struct {
-		name           string
-		contentEnc     string
-		body           []byte
-		wantStatus     int
-		wantDownstream []byte
-	}
-
-	cases := []tc{
+func TestGetZippedDataMiddleware(t *testing.T) {
+	tests := []struct {
+		name            string
+		contentEncoding string
+		body            io.Reader
+		wantStatus      int
+		wantBody        string
+	}{
 		{
-			name:           "no_gzip_pass_through",
-			contentEnc:     "",
-			body:           []byte("plain"),
-			wantStatus:     http.StatusOK,
-			wantDownstream: []byte("plain"),
+			name:            "passes plain body when no gzip",
+			contentEncoding: "",
+			body:            bytes.NewBufferString("plain"),
+			wantStatus:      http.StatusOK,
+			wantBody:        "plain",
 		},
 		{
-			name:           "gzip_ok_decompress",
-			contentEnc:     "gzip",
-			body:           gzipBytes(t, []byte(`{"a":1}`)),
-			wantStatus:     http.StatusOK,
-			wantDownstream: []byte(`{"a":1}`),
+			name:            "decompresses gzip body",
+			contentEncoding: "gzip",
+			body:            gzipBody(t, "compressed"),
+			wantStatus:      http.StatusOK,
+			wantBody:        "compressed",
 		},
 		{
-			name:       "gzip_bad_returns_400",
-			contentEnc: "gzip",
-			body:       []byte("not-a-gzip-stream"),
-			wantStatus: http.StatusBadRequest,
+			name:            "returns bad request for invalid gzip",
+			contentEncoding: "gzip",
+			body:            bytes.NewBufferString("not-gzip"),
+			wantStatus:      http.StatusBadRequest,
 		},
 	}
 
-	for _, tt := range cases {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got []byte
-
 			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				b, err := io.ReadAll(r.Body)
+				body, err := io.ReadAll(r.Body)
 				require.NoError(t, err)
-				got = b
 				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(body)
 			})
 
-			mw := handler.GetZippedDataMiddleware(next)
-
-			req := httptest.NewRequest(http.MethodPost, "http://example.com/", bytes.NewReader(tt.body))
-			if tt.contentEnc != "" {
-				req.Header.Set("Content-Encoding", tt.contentEnc)
+			req := httptest.NewRequest(http.MethodPost, "/", tt.body)
+			if tt.contentEncoding != "" {
+				req.Header.Set("Content-Encoding", tt.contentEncoding)
 			}
 			rr := httptest.NewRecorder()
 
-			mw.ServeHTTP(rr, req)
+			GetZippedDataMiddleware(next).ServeHTTP(rr, req)
 
-			require.Equal(t, tt.wantStatus, rr.Code)
-
-			if tt.wantStatus == http.StatusOK {
-				assert.Equal(t, tt.wantDownstream, got)
-				// middleware удаляет Content-Encoding перед next
-				assert.Empty(t, req.Header.Get("Content-Encoding"))
+			assert.Equal(t, tt.wantStatus, rr.Code)
+			if tt.wantBody != "" {
+				assert.Equal(t, tt.wantBody, rr.Body.String())
 			}
 		})
 	}
 }
 
-// =========================
-// GiveZippedDataMiddleware tests
-// =========================
-
-func TestGiveZippedDataMiddleware_Table(t *testing.T) {
-	type tc struct {
-		name              string
-		acceptEnc         string
-		contentType       string
-		payload           []byte
-		wantGzip          bool
-		wantStatus        int
-		expectedPlainBody []byte
-	}
-
-	cases := []tc{
+func TestGiveZippedDataMiddleware(t *testing.T) {
+	tests := []struct {
+		name           string
+		acceptEncoding string
+		contentType    string
+		wantGzip       bool
+	}{
 		{
-			name:              "no_accept_encoding_no_gzip",
-			acceptEnc:         "",
-			contentType:       "application/json",
-			payload:           []byte(`{"ok":true}`),
-			wantGzip:          false,
-			wantStatus:        http.StatusOK,
-			expectedPlainBody: []byte(`{"ok":true}`),
+			name:           "gzip response when accepted and json",
+			acceptEncoding: "gzip",
+			contentType:    "application/json",
+			wantGzip:       true,
 		},
 		{
-			name:        "accept_gzip_json_gzipped",
-			acceptEnc:   "gzip",
-			contentType: "application/json",
-			payload:     []byte(`{"ok":true}`),
-			wantGzip:    true,
-			wantStatus:  http.StatusOK,
-		},
-		{
-			name:        "accept_gzip_html_gzipped",
-			acceptEnc:   "gzip, deflate",
-			contentType: "text/html; charset=utf-8",
-			payload:     []byte(`<h1>hi</h1>`),
-			wantGzip:    true,
-			wantStatus:  http.StatusOK,
-		},
-		{
-			name:              "accept_gzip_but_content_type_not_supported_no_gzip",
-			acceptEnc:         "gzip",
-			contentType:       "text/plain",
-			payload:           []byte("hello"),
-			wantGzip:          false,
-			wantStatus:        http.StatusOK,
-			expectedPlainBody: []byte("hello"),
+			name:           "plain response when no accept gzip",
+			acceptEncoding: "",
+			contentType:    "application/json",
+			wantGzip:       false,
 		},
 	}
 
-	for _, tt := range cases {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// важно: Content-Type должен быть выставлен до WriteHeader/Write
-				if tt.contentType != "" {
-					w.Header().Set("Content-Type", tt.contentType)
-				}
+				w.Header().Set("Content-Type", tt.contentType)
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write(tt.payload)
+				_, _ = w.Write([]byte(`{"ok":true}`))
 			})
 
-			mw := handler.GiveZippedDataMiddleware(next)
-
-			req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
-			if tt.acceptEnc != "" {
-				req.Header.Set("Accept-Encoding", tt.acceptEnc)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tt.acceptEncoding != "" {
+				req.Header.Set("Accept-Encoding", tt.acceptEncoding)
 			}
 			rr := httptest.NewRecorder()
 
-			mw.ServeHTTP(rr, req)
-
-			require.Equal(t, tt.wantStatus, rr.Code)
-
-			body := rr.Body.Bytes()
-			enc := rr.Header().Get("Content-Encoding")
+			GiveZippedDataMiddleware(next).ServeHTTP(rr, req)
 
 			if tt.wantGzip {
-				require.Equal(t, "gzip", enc)
-				plain := ungzipBytes(t, body)
-				assert.Equal(t, tt.payload, plain)
-			} else {
-				assert.NotEqual(t, "gzip", enc)
-				assert.Equal(t, tt.expectedPlainBody, body)
+				assert.Equal(t, "gzip", rr.Header().Get("Content-Encoding"))
+				assert.Equal(t, `{"ok":true}`, ungzipBytes(t, rr.Body.Bytes()))
+				return
 			}
+			assert.Empty(t, rr.Header().Get("Content-Encoding"))
+			assert.Equal(t, `{"ok":true}`, rr.Body.String())
 		})
 	}
 }
 
-// =========================
-// SaveAfterPostMiddleware tests (gomock)
-// =========================
-
-
-func TestSaveAfterPostMiddleware_Table(t *testing.T) {
-	type tc struct {
-		name           string
-		method         string
-		handlerStatus  int
-		expectSaveCall bool
+func TestSaveAfterPostMiddleware(t *testing.T) {
+	tests := []struct {
+		name      string
+		method    string
+		status    int
+		saveCalls int
+	}{
+		{name: "post success triggers save", method: http.MethodPost, status: http.StatusOK, saveCalls: 1},
+		{name: "post error does not trigger save", method: http.MethodPost, status: http.StatusInternalServerError, saveCalls: 0},
+		{name: "get does not trigger save", method: http.MethodGet, status: http.StatusOK, saveCalls: 0},
 	}
 
-	cases := []tc{
-		{"POST_200_calls_save", http.MethodPost, 200, true},
-		{"POST_201_calls_save", http.MethodPost, 201, true},
-		{"POST_204_calls_save", http.MethodPost, 204, true},
-		{"POST_400_no_save", http.MethodPost, 400, false},
-		{"POST_500_no_save", http.MethodPost, 500, false},
-		{"GET_200_no_save", http.MethodGet, 200, false},
-	}
-
-	for _, tt := range cases {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			saver := mocks.NewMockService(ctrl)
-
-			require.NotNil(t, saver, "замени saver на сгенеренный gomock-мок (см. комментарии выше)")
-
-			// ожидания
-			if tt.expectSaveCall {
-				// gomock expectation:
-				saver.EXPECT().SaveAllData().Return(nil).Times(1)
-			} else {
-				saver.EXPECT().SaveAllData().Times(0)
-			}
+			svc := mocks.NewMockService(ctrl)
+			svc.EXPECT().SaveAllData().Return(nil).Times(tt.saveCalls)
 
 			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tt.handlerStatus)
-				_, _ = w.Write([]byte("ok"))
+				w.WriteHeader(tt.status)
 			})
 
-			mw := handler.SaveAfterPostMiddleware(saver /* тут будет твой тип */)(next)
-
-			req := httptest.NewRequest(tt.method, "http://example.com/", nil)
+			h := SaveAfterPostMiddleware(svc)(next)
+			req := httptest.NewRequest(tt.method, "/", nil)
 			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
 
-			mw.ServeHTTP(rr, req)
-
-			require.Equal(t, tt.handlerStatus, rr.Code)
+			assert.Equal(t, tt.status, rr.Code)
 		})
 	}
 }

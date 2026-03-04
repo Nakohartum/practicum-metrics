@@ -94,3 +94,7 @@ func (s *DatabaseService) SaveAllData() error {
 	data := s.memRepo.GetAll()
 	return s.repo.SetAllData(data)
 }
+
+func (s *DatabaseService) SetDataUsingMetrics(metrics []models.Metrics) error {
+	return s.repo.SetAllData(metrics)
+}

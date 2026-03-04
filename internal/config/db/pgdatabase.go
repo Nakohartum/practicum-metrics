@@ -124,3 +124,23 @@ func (dbAdapter *PgDatabaseAdapter) GetData(metricType string, metricKey string)
 
 	return res, err
 } 
+
+func (dbAdapter *PgDatabaseAdapter) SetMultipleDataViaTransaction(ctx context.Context, metrics []models.Metrics) error {
+	transaction, err := dbAdapter.db.BeginTx(ctx, pgx.TxOptions{})
+	
+	if err != nil {
+		return err
+	}
+	defer transaction.Rollback(ctx)
+	query, err := transaction.Prepare(ctx, "add query", "insert into metric(id, metric_type, delta, value) values($1, $2, $3, $4)")
+	if err != nil {
+		return err
+	}
+	for _, v := range metrics {
+		_, err = transaction.Exec(ctx, query.SQL, v.ID, v.MType, v.Delta, v.Value)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -78,7 +78,8 @@ func setupMemService(repo *repository.MemRepo) *service.MetricsService {
 
 func setupDatabaseService(memRepo *repository.MemRepo) *service.DatabaseService {
 	dbAdapter := dbConfig.NewPgDatabaseAdapter(configData.DatabaseAddress.connectionString)
-	err := dbAdapter.Open(context.Background())
+	ctx := context.Background()
+	err := dbAdapter.Open(ctx)
 	if err != nil{
 		log.Fatal(err)
 	}
@@ -147,9 +148,8 @@ func setupServer(service service.Service) http.Server {
 			r.Post("/", logger.AttachLoggingToResponse(metricsHandler.GetMetricsByNameHandle()))
 			r.Get("/{metricType}/{metricName}", logger.AttachLoggingToResponse(metricsHandler.GetMetricDataHandle()))
 		})
-		
+		r.Post("/updates/", logger.AttachLoggingToResponse(metricsHandler.SetMetricDataHandle()))
 	})
-
 	router.Post("/value/", logger.AttachLoggingToResponse(metricsHandler.GetMetricsByNameHandle()))
 	if configData.FileWork.storeInterval != 0 {
 		go service.RunSaving(context.Background())

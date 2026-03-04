@@ -70,3 +70,19 @@ func (s* MetricsService) SaveAllData() error {
 func (s *MetricsService) SaveDataAfterExit(ctx context.Context) error {
 	return nil
 }
+
+func (s *MetricsService) SetDataUsingMetrics(metrics []models.Metrics) error {
+	for _, v := range metrics {
+		var err error
+		switch v.MType {
+		case models.Counter:
+			err = s.repo.SetData(v.MType, v.ID, strconv.FormatInt(*v.Delta, 10))
+		case models.Gauge:
+			err = s.repo.SetData(v.MType, v.ID, strconv.FormatFloat(*v.Value, 'f', -1, 64))
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

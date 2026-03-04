@@ -106,3 +106,7 @@ func (fs *FileService) SaveAllData() error {
 	values := fs.memRepo.GetAll()
 	return fs.repo.WriteData(values)
 }
+
+func (fs* FileService) SetDataUsingMetrics(metrics []models.Metrics) error {
+	return fs.repo.WriteData(metrics)
+}

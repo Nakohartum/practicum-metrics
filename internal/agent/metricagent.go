@@ -80,10 +80,12 @@ func (mA *MetricsAgent) setCounterMetrics() {
 	mA.counterMetrics["PollCount"]++
 }
 
+type metricsBytes = []byte
 
-func (mA *MetricsAgent) sendGaugeMetrics(path string){
+func (mA *MetricsAgent) sendGaugeMetrics() []metricsBytes{
+	metrics := make([]metricsBytes, 0)
+	
 	for k, v := range mA.gaugeMetrics{
-		endpoint := fmt.Sprintf("%s/update", path)
 
 		metric := models.Metrics{
 			ID: k,
@@ -102,23 +104,14 @@ func (mA *MetricsAgent) sendGaugeMetrics(path string){
 		if err != nil {
 			log.Println(err)
 		}
-		
-		resp, err := mA.client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("Content-Encoding", "gzip").
-		SetBody(compressedData).Post(endpoint)
-
-		if err != nil {
-			log.Println(err)
-		}
-
-		fmt.Print(resp)
+		metrics = append(metrics, compressedData)
 	}
+	return metrics
 }
 
-func (mA *MetricsAgent) sendCounterMetrics(path string){
+func (mA *MetricsAgent) sendCounterMetrics() []metricsBytes{
+	metrics := make([]metricsBytes, 0)
 	for k, v := range mA.counterMetrics{
-		endpoint := fmt.Sprintf("%s/update", path)
 
 		metric := models.Metrics{
 			ID: k,
@@ -138,23 +131,34 @@ func (mA *MetricsAgent) sendCounterMetrics(path string){
 			log.Println(err)
 		}
 
-
-		resp, err := mA.client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("Content-Encoding", "gzip").
-		SetBody(compressedData).Post(endpoint)
-
-		if err != nil {
-			log.Println(err)
-		}
-
-		fmt.Print(resp)
+		metrics = append(metrics, compressedData)
 	}
+	return metrics
 }
 
 func (mA *MetricsAgent) sendMetrics(path string) {
-	mA.sendGaugeMetrics(path)
-	mA.sendCounterMetrics(path)
+	metricsToSend := make([]metricsBytes, 0)
+	metricsToSend = append(metricsToSend, mA.sendGaugeMetrics()...)
+	metricsToSend = append(metricsToSend, mA.sendCounterMetrics()...)
+	endpoint := fmt.Sprintf("%s/update", path)
+	for start := 0; start < len(metricsToSend); start += 10 {
+		end := start + 10
+		if end > len(metricsToSend) {
+			end = len(metricsToSend)
+		}
+
+		for _, v := range metricsToSend[start:end] {
+			resp, err := mA.client.R().
+				SetHeader("Content-Type", "application/json").
+				SetHeader("Content-Encoding", "gzip").
+				SetBody(v).Post(endpoint)
+			if err != nil {
+				log.Fatal(err.Error())
+				return
+			}
+			log.Print(resp)
+		}
+	}
 }
 
 func (mA *MetricsAgent) Run(ctx context.Context, host string) {

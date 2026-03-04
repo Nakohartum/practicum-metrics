@@ -24,8 +24,6 @@ func NewMetricsHandler(s service.Service) *MetricsHandler {
 	}
 }
 
-
-
 func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		var metric models.Metrics
@@ -257,5 +255,33 @@ func (mh *MetricsHandler) Ping(ctx context.Context) http.Handler{
 		}
 		w.WriteHeader(http.StatusOK)
 	}
+	return http.HandlerFunc(fun)
+}
+
+func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
+	fun := func (w http.ResponseWriter, r *http.Request)  {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return 
+		}
+		var metrics []models.Metrics
+		var buf bytes.Buffer
+
+		_, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return 
+		}
+		if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return 
+		}
+		err = mh.service.SetDataUsingMetrics(metrics)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return 
+		}
+	}
+
 	return http.HandlerFunc(fun)
 }
