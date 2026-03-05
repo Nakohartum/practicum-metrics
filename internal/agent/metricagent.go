@@ -5,9 +5,11 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"runtime"
 	"time"
@@ -16,6 +18,8 @@ import (
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/go-resty/resty/v2"
 )
+
+
 
 type MetricsAgent struct {
 	PollInterval   time.Duration
@@ -126,43 +130,57 @@ func (mA *MetricsAgent) sendCounterMetrics() []metricsBytes {
 	return metrics
 }
 
+func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, timeoutDuration time.Duration) error{
+	compressedData, err := compressData(v)
+	if err != nil {
+		log.Println(err)
+	}
+
+	resp, err := mA.client.
+	SetTimeout(timeoutDuration).
+	R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetBody(compressedData).
+		Post(endpoint)
+	if err != nil || resp.StatusCode() >= http.StatusBadRequest {
+		resp, err = mA.client.
+		SetTimeout(timeoutDuration).
+		R().
+			SetHeader("Content-Type", "application/json").
+			SetBody(v).
+			Post(endpoint)
+
+		return err
+	}
+	return nil
+}
+
 func (mA *MetricsAgent) sendMetrics(path string) {
 	metricsToSend := make([]metricsBytes, 0)
 	metricsToSend = append(metricsToSend, mA.sendGaugeMetrics()...)
 	metricsToSend = append(metricsToSend, mA.sendCounterMetrics()...)
 	endpoint := fmt.Sprintf("%s/update", path)
+	
+	attempts := 3
 	for start := 0; start < len(metricsToSend); start += 10 {
+		timeoutDuration := 1;
 		end := start + 10
 		if end > len(metricsToSend) {
 			end = len(metricsToSend)
 		}
 
 		for _, v := range metricsToSend[start:end] {
-			compressedData, err := compressData(v)
-			if err != nil {
-				log.Println(err)
-				continue
+			for attempt := 0; attempt < attempts; attempt++ {
+				err := mA.sendDataWithDeadline(v, endpoint, time.Duration(timeoutDuration * int(time.Second)))
+				var opError *net.OpError
+				if err != nil && (errors.Is(err, context.DeadlineExceeded) || errors.As(err, &opError)) {
+					time.Sleep(time.Duration(timeoutDuration * int(time.Second)))
+					timeoutDuration += 2
+				} else {
+					break
+				}
 			}
-
-			resp, err := mA.client.R().
-				SetHeader("Content-Type", "application/json").
-				SetHeader("Content-Encoding", "gzip").
-				SetBody(compressedData).
-				Post(endpoint)
-
-			// Keep gzip as primary mode, but fallback for servers that
-			// don't support compressed request bodies.
-			if err != nil || resp.StatusCode() >= http.StatusBadRequest {
-				resp, err = mA.client.R().
-					SetHeader("Content-Type", "application/json").
-					SetBody(v).
-					Post(endpoint)
-			}
-			if err != nil {
-				log.Println(err.Error())
-				continue
-			}
-			log.Print(resp)
 		}
 	}
 }
