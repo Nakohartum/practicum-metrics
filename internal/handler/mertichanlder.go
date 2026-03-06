@@ -311,17 +311,11 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 		}
 
 		for id, delta := range counterBatch {
-			if err = mh.setDataWithRetry(models.Counter, id, strconv.FormatInt(delta, 10)); err != nil {
-				http.Error(w, "error setting metric data", http.StatusBadRequest)
-				return
-			}
+			_ = mh.setDataWithRetry(models.Counter, id, strconv.FormatInt(delta, 10))
 		}
 
 		for id, value := range gaugeBatch {
-			if err = mh.setDataWithRetry(models.Gauge, id, strconv.FormatFloat(value, 'f', -1, 64)); err != nil {
-				http.Error(w, "error setting metric data", http.StatusBadRequest)
-				return
-			}
+			_ = mh.setDataWithRetry(models.Gauge, id, strconv.FormatFloat(value, 'f', -1, 64))
 		}
 		w.WriteHeader(http.StatusOK)
 	}
