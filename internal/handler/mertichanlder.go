@@ -141,24 +141,7 @@ func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 			return
 		}
 
-		if err := mh.service.SetData(metricType, metricName, metricValue); err != nil {
-			classification := mh.checkError(err)
-			if classification == config.Retriable {
-				retries := 3
-				cooldown := 1 * time.Second
-				for i:= 0; i < retries; i++{
-					err = mh.service.SetData(metricType, metricName, metricValue)
-					if err == nil {
-						break
-					}
-					time.Sleep(cooldown)
-					cooldown += 2
-				}
-				if err != nil {
-					http.Error(w, "error setting metric data", http.StatusBadRequest)
-					return
-				}
-			}
+		if err := mh.setDataWithRetry(metricType, metricName, metricValue); err != nil {
 			http.Error(w, "error setting metric data", http.StatusBadRequest)
 			return
 		}
@@ -303,30 +286,69 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 			}
 			metrics = []models.Metrics{single}
 		}
+		counterBatch := make(map[string]int64)
+		gaugeBatch := make(map[string]float64)
+
 		for _, metric := range metrics {
-			err = mh.saveMetric(metric, false)
-			classification := mh.checkError(err)
-			if classification == config.Retriable {
-				retries := 3
-				cooldown := 1 * time.Second
-				for i:= 0; i < retries; i++{
-					err = mh.saveMetric(metric, false)
-					if err == nil {
-						break
-					}
-					time.Sleep(cooldown)
-					cooldown += 2
+			if metric.ID == "" {
+				continue
+			}
+			switch metric.MType {
+			case models.Counter:
+				if metric.Delta == nil {
+					continue
 				}
-				if err != nil {
-					http.Error(w, "error setting metric data", http.StatusBadRequest)
-					return
+				counterBatch[metric.ID] += *metric.Delta
+			case models.Gauge:
+				if metric.Value == nil {
+					continue
 				}
+				// In one batch, the latest gauge value for the same metric wins.
+				gaugeBatch[metric.ID] = *metric.Value
+			default:
+				continue
+			}
+		}
+
+		for id, delta := range counterBatch {
+			if err = mh.setDataWithRetry(models.Counter, id, strconv.FormatInt(delta, 10)); err != nil {
+				http.Error(w, "error setting metric data", http.StatusBadRequest)
+				return
+			}
+		}
+
+		for id, value := range gaugeBatch {
+			if err = mh.setDataWithRetry(models.Gauge, id, strconv.FormatFloat(value, 'f', -1, 64)); err != nil {
+				http.Error(w, "error setting metric data", http.StatusBadRequest)
+				return
 			}
 		}
 		w.WriteHeader(http.StatusOK)
 	}
 
 	return http.HandlerFunc(fun)
+}
+
+func (mh *MetricsHandler) setDataWithRetry(metricType, metricName, metricValue string) error {
+	err := mh.service.SetData(metricType, metricName, metricValue)
+	if err == nil {
+		return nil
+	}
+	if mh.checkError(err) != config.Retriable {
+		return err
+	}
+
+	retries := 3
+	cooldown := 1 * time.Second
+	for i := 0; i < retries; i++ {
+		err = mh.service.SetData(metricType, metricName, metricValue)
+		if err == nil {
+			return nil
+		}
+		time.Sleep(cooldown)
+		cooldown += 2
+	}
+	return err
 }
 
 func (mh *MetricsHandler) saveMetric(metric models.Metrics, strict bool) error {
