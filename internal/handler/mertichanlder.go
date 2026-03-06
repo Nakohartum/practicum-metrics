@@ -4,18 +4,54 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"html/template"
 	"net/http"
 	"strconv"
+	"time"
 
+	config "github.com/Nakohartum/practicum-metrics/internal/config/db"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
 	"github.com/go-chi/chi/v5"
 )
 
+func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {
+	if r.Method != method {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return false
+	}
+	return true
+}
+
+func readBody(r *http.Request) ([]byte, error) {
+	var buf bytes.Buffer
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeJSONBody[T any](r *http.Request, dst *T) error {
+	body, err := readBody(r)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(body, dst)
+}
+
 type MetricsHandler struct {
 	service service.Service
+}
+
+type metricValidationError struct {
+	message string
+}
+
+func (e metricValidationError) Error() string {
+	return e.message
 }
 
 func NewMetricsHandler(s service.Service) *MetricsHandler {
@@ -24,19 +60,15 @@ func NewMetricsHandler(s service.Service) *MetricsHandler {
 	}
 }
 
+func (mh *MetricsHandler) checkError(err error) config.PGErrorClassification {
+	validator := config.NewPostgresErrorClassifier()
+	return validator.Classify(err)
+}
+
 func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		var metric models.Metrics
-		var buf bytes.Buffer
-
-		_, err := buf.ReadFrom(r.Body)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if err := json.Unmarshal(buf.Bytes(), &metric); err != nil {
+		if err := decodeJSONBody(r, &metric); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -48,27 +80,14 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 			http.Error(w, "no metric's type", http.StatusBadRequest)
 			return
 		}
-		switch metric.MType {
-		case models.Counter:
-			if metric.Delta == nil {
-				http.Error(w, "delta value is required for counter type", http.StatusBadRequest)
+		if err := mh.saveMetric(metric, true); err != nil {
+			var validationErr metricValidationError
+			if errors.As(err, &validationErr) {
+				http.Error(w, validationErr.Error(), http.StatusBadRequest)
 				return
 			}
-			err := mh.service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		case models.Gauge:
-			if metric.Value == nil {
-				http.Error(w, "value is required for gauge type", http.StatusBadRequest)
-				return
-			}
-			err := mh.service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -79,13 +98,7 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		var metricToSearch models.Metrics
-		var buf bytes.Buffer
-		_, err := buf.ReadFrom(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if err := json.Unmarshal(buf.Bytes(), &metricToSearch); err != nil {
+		if err := decodeJSONBody(r, &metricToSearch); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -115,8 +128,7 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 
 func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -130,6 +142,23 @@ func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 		}
 
 		if err := mh.service.SetData(metricType, metricName, metricValue); err != nil {
+			classification := mh.checkError(err)
+			if classification == config.Retriable {
+				retries := 3
+				cooldown := 1 * time.Second
+				for i:= 0; i < retries; i++{
+					err = mh.service.SetData(metricType, metricName, metricValue)
+					if err == nil {
+						break
+					}
+					time.Sleep(cooldown)
+					cooldown += 2
+				}
+				if err != nil {
+					http.Error(w, "error setting metric data", http.StatusBadRequest)
+					return
+				}
+			}
 			http.Error(w, "error setting metric data", http.StatusBadRequest)
 			return
 		}
@@ -139,10 +168,10 @@ func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 	return http.HandlerFunc(fun)
 }
 
+
 func (mh *MetricsHandler) GetMetricDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 
@@ -221,8 +250,7 @@ func NewPageHandler(s repository.Storage) *PageHandler {
 }
 
 func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
@@ -240,8 +268,7 @@ func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 
 func (mh *MetricsHandler) Ping(ctx context.Context) http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 
@@ -257,43 +284,42 @@ func (mh *MetricsHandler) Ping(ctx context.Context) http.Handler {
 
 func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var metrics []models.Metrics
-		var buf bytes.Buffer
-
-		_, err := buf.ReadFrom(r.Body)
+		body, err := readBody(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		// Accept both batch array and single metric payload.
-		if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
+		if err = json.Unmarshal(body, &metrics); err != nil {
 			var single models.Metrics
-			if errSingle := json.Unmarshal(buf.Bytes(), &single); errSingle != nil {
+			if errSingle := json.Unmarshal(body, &single); errSingle != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			metrics = []models.Metrics{single}
 		}
 		for _, metric := range metrics {
-			switch metric.MType {
-			case models.Counter:
-				if metric.Delta == nil {
-					continue
+			err = mh.saveMetric(metric, false)
+			classification := mh.checkError(err)
+			if classification == config.Retriable {
+				retries := 3
+				cooldown := 1 * time.Second
+				for i:= 0; i < retries; i++{
+					err = mh.saveMetric(metric, false)
+					if err == nil {
+						break
+					}
+					time.Sleep(cooldown)
+					cooldown += 2
 				}
-				if err := mh.service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10)); err != nil {
-					continue
-				}
-			case models.Gauge:
-				if metric.Value == nil {
-					continue
-				}
-				if err := mh.service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64)); err != nil {
-					continue
+				if err != nil {
+					http.Error(w, "error setting metric data", http.StatusBadRequest)
+					return
 				}
 			}
 		}
@@ -301,4 +327,42 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 	}
 
 	return http.HandlerFunc(fun)
+}
+
+func (mh *MetricsHandler) saveMetric(metric models.Metrics, strict bool) error {
+	value, skip, err := getMetricValue(metric, strict)
+	if err != nil {
+		return err
+	}
+	if skip {
+		return nil
+	}
+
+	return mh.service.SetData(metric.MType, metric.ID, value)
+}
+
+func getMetricValue(metric models.Metrics, strict bool) (string, bool, error) {
+	switch metric.MType {
+	case models.Counter:
+		if metric.Delta == nil {
+			if strict {
+				return "", false, metricValidationError{message: "delta value is required for counter type"}
+			}
+			return "", true, nil
+		}
+		return strconv.FormatInt(*metric.Delta, 10), false, nil
+	case models.Gauge:
+		if metric.Value == nil {
+			if strict {
+				return "", false, metricValidationError{message: "value is required for gauge type"}
+			}
+			return "", true, nil
+		}
+		return strconv.FormatFloat(*metric.Value, 'f', -1, 64), false, nil
+	default:
+		if strict {
+			return "", false, metricValidationError{message: "unsupported metric type"}
+		}
+		return "", true, nil
+	}
 }
