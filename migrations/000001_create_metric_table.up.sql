@@ -6,5 +6,5 @@ CREATE TABLE if not exists metric (
 	metric_type varchar NOT NULL,
 	delta int NULL,
 	value double precision NULL,
-	CONSTRAINT newtable_pk PRIMARY KEY (id)
+	CONSTRAINT newtable_pk PRIMARY KEY (id, metric_type)
 );

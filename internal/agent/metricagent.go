@@ -144,7 +144,7 @@ func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, ti
 		SetBody(compressedData).
 		Post(endpoint)
 	if err != nil || resp.StatusCode() >= http.StatusBadRequest {
-		resp, err = mA.client.
+		_, err = mA.client.
 		SetTimeout(timeoutDuration).
 		R().
 			SetHeader("Content-Type", "application/json").
