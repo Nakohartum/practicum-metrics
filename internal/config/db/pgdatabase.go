@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/jackc/pgx/v5"
@@ -20,6 +21,7 @@ var (
 type PgDatabaseAdapter struct {
 	connectionString string
 	db               *pgx.Conn
+	mu               sync.Mutex
 }
 
 func NewPgDatabaseAdapter(connectionString string) *PgDatabaseAdapter {
@@ -73,6 +75,9 @@ func (dbAdapter *PgDatabaseAdapter) runMigrations(ctx context.Context, dir strin
 
 
 func (dbAdapter *PgDatabaseAdapter) Close(ctx context.Context) error{
+	dbAdapter.mu.Lock()
+	defer dbAdapter.mu.Unlock()
+
 	if dbAdapter.db == nil {
 		return errNoConnectionToClose
 	}
@@ -81,10 +86,16 @@ func (dbAdapter *PgDatabaseAdapter) Close(ctx context.Context) error{
 }
 
 func (dbAdapter *PgDatabaseAdapter) CheckConnection(ctx context.Context) error{
+	dbAdapter.mu.Lock()
+	defer dbAdapter.mu.Unlock()
+
 	return dbAdapter.db.Ping(ctx)
 }
 
 func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error {
+	dbAdapter.mu.Lock()
+	defer dbAdapter.mu.Unlock()
+
 	var count int64
 	row := dbAdapter.db.QueryRow(context.Background(), "SELECT COUNT(*) FROM metric where id = $1 and metric_type = $2", model.ID, model.MType)
 	err := row.Scan(&count)
@@ -115,6 +126,9 @@ func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error {
 }
 
 func (dbAdapter *PgDatabaseAdapter) GetAll() []models.Metrics {
+	dbAdapter.mu.Lock()
+	defer dbAdapter.mu.Unlock()
+
 	results := make([]models.Metrics, 0)
 	rows, err := dbAdapter.db.Query(context.Background(), "select * from metric")
 	if err != nil {
@@ -131,6 +145,9 @@ func (dbAdapter *PgDatabaseAdapter) GetAll() []models.Metrics {
 }
 
 func (dbAdapter *PgDatabaseAdapter) GetData(metricType string, metricKey string) (models.Metrics, error) {
+	dbAdapter.mu.Lock()
+	defer dbAdapter.mu.Unlock()
+
 	var res models.Metrics
 
 	row := dbAdapter.db.QueryRow(context.Background(), "select * from metric where id = $1 and metric_type = $2", metricKey, metricType)
@@ -141,6 +158,9 @@ func (dbAdapter *PgDatabaseAdapter) GetData(metricType string, metricKey string)
 } 
 
 func (dbAdapter *PgDatabaseAdapter) SetMultipleDataViaTransaction(ctx context.Context, metrics []models.Metrics) error {
+	dbAdapter.mu.Lock()
+	defer dbAdapter.mu.Unlock()
+
 	transaction, err := dbAdapter.db.BeginTx(ctx, pgx.TxOptions{})
 	
 	if err != nil {
