@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"strings"
@@ -11,7 +14,7 @@ import (
 
 type gZipWriter struct {
 	http.ResponseWriter
-	zw *gzip.Writer
+	zw          *gzip.Writer
 	gzipEnabled bool
 	wroteHeader bool
 }
@@ -21,7 +24,7 @@ func newGzipWriter(w http.ResponseWriter) *gZipWriter {
 }
 
 func (w *gZipWriter) Write(b []byte) (int, error) {
-    if !w.wroteHeader {
+	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -37,7 +40,7 @@ func (w *gZipWriter) WriteHeader(statusCode int) {
 	}
 	w.wroteHeader = true
 
-	if strings.Contains(w.Header().Get("Content-Type"), "application/json") || strings.Contains(w.Header().Get("Content-Type"), "text/html"){
+	if strings.Contains(w.Header().Get("Content-Type"), "application/json") || strings.Contains(w.Header().Get("Content-Type"), "text/html") {
 		w.gzipEnabled = true
 		w.Header().Set("Content-Encoding", "gzip")
 		w.zw = gzip.NewWriter(w.ResponseWriter)
@@ -53,7 +56,7 @@ func (w *gZipWriter) Close() error {
 }
 
 type gZipReader struct {
-	r io.ReadCloser
+	r  io.ReadCloser
 	zr *gzip.Reader
 }
 
@@ -81,14 +84,13 @@ func GetZippedDataMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 			next.ServeHTTP(w, r)
-			return 
+			return
 		}
 		cw, err := newGZipReader(r.Body)
 
-
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-			return 
+			return
 		}
 
 		r.Body = cw
@@ -102,7 +104,7 @@ func GiveZippedDataMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 			next.ServeHTTP(w, r)
-			return 
+			return
 		}
 
 		cw := newGzipWriter(w)
@@ -123,7 +125,6 @@ func (w *statusWriter) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
-
 func SaveAfterPostMiddleware(saver service.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -135,6 +136,43 @@ func SaveAfterPostMiddleware(saver service.Service) func(http.Handler) http.Hand
 				}
 				return
 			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func HashMiddleware(key string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if key == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			headerHash := r.Header.Get("HashSHA256")
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "failed to read body", http.StatusBadRequest)
+				return
+			}
+			defer r.Body.Close()
+
+			if headerHash == "" {
+				http.Error(w, "missing hash", http.StatusBadRequest)
+				return
+			}
+
+			data := make([]byte, 0, len(body)+len(key))
+			data = append(data, body...)
+			data = append(data, key...)
+			hash := sha256.Sum256(data)
+			hashHex := hex.EncodeToString(hash[:])
+
+			if hashHex != headerHash {
+				http.Error(w, "invalid hash", http.StatusBadRequest)
+				return
+			}
+
+			r.Body = io.NopCloser(bytes.NewReader(body))
 			next.ServeHTTP(w, r)
 		})
 	}

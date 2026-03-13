@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"time"
 
@@ -24,7 +23,7 @@ func NewMetricsService(r *repository.MemRepo, storeInterval int) *MetricsService
 
 func (s *MetricsService) GetData(metricType, metricKey string) (models.Metrics, error) {
 	if metricKey == "" {
-		return models.Metrics{}, errors.New("no metric's name")
+		return models.Metrics{}, ErrMetricNameRequired
 	}
 	return s.repo.GetData(metricType, metricKey)
 
@@ -79,7 +78,7 @@ func (s *MetricsService) SetDataUsingMetrics(metrics []models.Metrics) error {
 		case models.Counter:
 			if v.Delta == nil {
 				if firstErr == nil {
-					firstErr = errors.New("delta value is required for counter type")
+					firstErr = ErrCounterDeltaRequired
 				}
 				continue
 			}
@@ -87,14 +86,14 @@ func (s *MetricsService) SetDataUsingMetrics(metrics []models.Metrics) error {
 		case models.Gauge:
 			if v.Value == nil {
 				if firstErr == nil {
-					firstErr = errors.New("value is required for gauge type")
+					firstErr = ErrGaugeValueRequired
 				}
 				continue
 			}
 			err = s.repo.SetData(v.MType, v.ID, strconv.FormatFloat(*v.Value, 'f', -1, 64))
 		default:
 			if firstErr == nil {
-				firstErr = errors.New("no such metric type")
+				firstErr = ErrMetricTypeNotSupported
 			}
 			continue
 		}

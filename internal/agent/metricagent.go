@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,16 +28,18 @@ type MetricsAgent struct {
 	ReportInterval time.Duration
 	gaugeMetrics   map[string]float64
 	counterMetrics map[string]int64
+	key            string
 	client         *resty.Client
 	sleep          func(time.Duration)
 }
 
-func NewAgentMetrics(pollInterval, reportInterval int) *MetricsAgent {
+func NewAgentMetrics(pollInterval, reportInterval int, key string) *MetricsAgent {
 	var agent = MetricsAgent{
 		PollInterval:   time.Duration(pollInterval * int(time.Second)),
 		ReportInterval: time.Duration(reportInterval * int(time.Second)),
 		gaugeMetrics:   make(map[string]float64),
 		counterMetrics: make(map[string]int64),
+		key: key,
 		client:         resty.New().SetHeader("Content-Type", "application/json"),
 	}
 	internalLogger.AttachLoggingToRequest(agent.client)
@@ -135,21 +139,30 @@ func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, ti
 	if err != nil {
 		log.Println(err)
 	}
-
-	resp, err := mA.client.
+	hash := makeHash(compressedData, mA.key)
+	req := mA.client.
 	SetTimeout(timeoutDuration).
 	R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
-		SetBody(compressedData).
-		Post(endpoint)
+		SetBody(compressedData)
+	if hash != "" {
+		req.SetHeader("HashSHA256", hash)
+	}
+	resp, err := req.Post(endpoint)
 	if err != nil || resp.StatusCode() >= http.StatusBadRequest {
-		_, err = mA.client.
+		hash = makeHash(v, mA.key)
+		req := mA.client.
 		SetTimeout(timeoutDuration).
 		R().
 			SetHeader("Content-Type", "application/json").
-			SetBody(v).
-			Post(endpoint)
+			SetBody(v)
+
+		if hash != "" {
+			req.SetHeader("HashSHA256", hash)
+		}
+
+		_, err = req.Post(endpoint)
 
 		return err
 	}
@@ -224,4 +237,15 @@ func compressData(data []byte) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func makeHash(body []byte, key string) string {
+	if key == "" {
+		return ""
+	}
+	data := make([]byte, 0, len(body) + len(key))
+	data = append(data, body...)
+	data = append(data, key...)
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
 }

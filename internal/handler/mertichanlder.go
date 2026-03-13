@@ -151,7 +151,6 @@ func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 	return http.HandlerFunc(fun)
 }
 
-
 func (mh *MetricsHandler) GetMetricDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodGet) {
@@ -214,9 +213,9 @@ func NewPageHandler(s repository.Storage) *PageHandler {
     <tbody>
       {{range .}}
         <tr>
-          <td>{{.Type}}</td>
-          <td>{{.Name}}</td>
-          <td>{{.Value}}</td>
+          <td>{{.MType}}</td>
+          <td>{{.ID}}</td>
+          <td>{{if .Delta}}{{.Delta}}{{else}}{{.Value}}{{end}}</td>
         </tr>
       {{end}}
     </tbody>

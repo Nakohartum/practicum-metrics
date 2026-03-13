@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"log"
 	"strconv"
 	"time"
@@ -27,7 +26,7 @@ func NewDatabaseService(repo *repository.DatabaseRepository, mr *repository.MemR
 
 func (s *DatabaseService) GetData(metricType, metricKey string) (models.Metrics, error) {
 	if metricKey == "" {
-		return models.Metrics{}, errors.New("no metric's name")
+		return models.Metrics{}, ErrMetricNameRequired
 	}
 	return s.repo.GetData(metricType, metricKey)
 
@@ -51,7 +50,7 @@ func (s *DatabaseService) SetData(metricType, metricKey, metricValue string) err
 		}
 		metric.Value = &val
 	default:
-		return errors.New("no such metric type")
+		return ErrMetricTypeNotSupported
 	}
 	return s.repo.SetData(metric)
 }
@@ -100,7 +99,7 @@ func (s *DatabaseService) SetDataUsingMetrics(metrics []models.Metrics) error {
 		case models.Counter:
 			if metric.Delta == nil {
 				if firstErr == nil {
-					firstErr = errors.New("delta value is required for counter type")
+					firstErr = ErrCounterDeltaRequired
 				}
 				continue
 			}
@@ -112,7 +111,7 @@ func (s *DatabaseService) SetDataUsingMetrics(metrics []models.Metrics) error {
 		case models.Gauge:
 			if metric.Value == nil {
 				if firstErr == nil {
-					firstErr = errors.New("value is required for gauge type")
+					firstErr = ErrGaugeValueRequired
 				}
 				continue
 			}
@@ -123,7 +122,7 @@ func (s *DatabaseService) SetDataUsingMetrics(metrics []models.Metrics) error {
 			}
 		default:
 			if firstErr == nil {
-				firstErr = errors.New("no such metric type")
+				firstErr = ErrMetricTypeNotSupported
 			}
 			continue
 		}

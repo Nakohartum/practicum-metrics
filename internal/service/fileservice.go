@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"log"
 	"strconv"
 	"time"
@@ -41,7 +40,7 @@ func (fs *FileService) GetData(metricType, metricKey string) (models.Metrics, er
 			return v, nil
 		}
 	}
-	return models.Metrics{}, errors.New("metric not found error")
+	return models.Metrics{}, ErrMetricNotFound
 }
 
 func (fs *FileService) GetAll() []models.Metrics {
@@ -115,7 +114,7 @@ func (fs *FileService) SetDataUsingMetrics(metrics []models.Metrics) error {
 		case models.Counter:
 			if metric.Delta == nil {
 				if firstErr == nil {
-					firstErr = errors.New("delta value is required for counter type")
+					firstErr = ErrCounterDeltaRequired
 				}
 				continue
 			}
@@ -127,7 +126,7 @@ func (fs *FileService) SetDataUsingMetrics(metrics []models.Metrics) error {
 		case models.Gauge:
 			if metric.Value == nil {
 				if firstErr == nil {
-					firstErr = errors.New("value is required for gauge type")
+					firstErr = ErrGaugeValueRequired
 				}
 				continue
 			}
@@ -138,7 +137,7 @@ func (fs *FileService) SetDataUsingMetrics(metrics []models.Metrics) error {
 			}
 		default:
 			if firstErr == nil {
-				firstErr = errors.New("no such metric type")
+				firstErr = ErrMetricTypeNotSupported
 			}
 			continue
 		}

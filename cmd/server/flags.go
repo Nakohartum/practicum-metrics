@@ -12,6 +12,7 @@ type Config struct {
 	Address Address
 	FileWork FileWork
 	DatabaseAddress DatabaseAddress
+	secretKey string `env:"KEY"`
 }
 
 type DatabaseAddress struct {
@@ -64,6 +65,7 @@ func parseFlags() {
 	flag.StringVar(&configData.FileWork.fileStoragePath, "f", "", "path to store data")
 	flag.BoolVar(&configData.FileWork.restore, "r", false, "true for restore, false for not")
 	flag.StringVar(&configData.DatabaseAddress.connectionString, "d", "", "connection string for database")
+	flag.StringVar(&configData.secretKey, "k", "", "secret key for signing data")
 	flag.Parse()
 
 	
@@ -93,5 +95,9 @@ func parseFlags() {
 
 	if v, ok := os.LookupEnv("DATABASE_DSN"); ok && v != "" {
 		configData.DatabaseAddress.connectionString = v
+	}
+
+	if v, ok := os.LookupEnv("KEY"); ok && v != ""{
+		configData.secretKey = v
 	}
 }

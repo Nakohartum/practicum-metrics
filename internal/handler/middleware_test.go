@@ -3,6 +3,8 @@ package handler
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -167,4 +169,78 @@ func TestSaveAfterPostMiddleware(t *testing.T) {
 			assert.Equal(t, tt.status, rr.Code)
 		})
 	}
+}
+
+func TestHashMiddleware(t *testing.T) {
+	tests := []struct {
+		name       string
+		key        string
+		body       string
+		hash       string
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "passes through when key is empty",
+			key:        "",
+			body:       "payload",
+			wantStatus: http.StatusOK,
+			wantBody:   "payload",
+		},
+		{
+			name:       "returns bad request for missing hash",
+			key:        "secret",
+			body:       "payload",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "returns bad request for invalid hash",
+			key:        "secret",
+			body:       "payload",
+			hash:       "bad",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "passes valid hash",
+			key:        "secret",
+			body:       "payload",
+			wantStatus: http.StatusOK,
+			wantBody:   "payload",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				require.NoError(t, err)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(body)
+			})
+
+			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(tt.body))
+			if tt.key != "" && tt.hash == "" && tt.wantStatus == http.StatusOK {
+				req.Header.Set("HashSHA256", calculateHash(tt.body, tt.key))
+			}
+			if tt.hash != "" {
+				req.Header.Set("HashSHA256", tt.hash)
+			}
+			rr := httptest.NewRecorder()
+
+			HashMiddleware(tt.key)(next).ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.wantStatus, rr.Code)
+			if tt.wantBody != "" {
+				assert.Equal(t, tt.wantBody, rr.Body.String())
+			}
+		})
+	}
+}
+
+func calculateHash(body, key string) string {
+	data := make([]byte, 0, len(body)+len(key))
+	data = append(data, body...)
+	data = append(data, key...)
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
 }

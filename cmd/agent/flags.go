@@ -10,8 +10,9 @@ import (
 
 type Config struct {
     address Address
-    reportInterval int64
-    pollInterval int64
+    reportInterval int64 `env:"REPORT_INTERVAL"`
+    pollInterval int64 `env:"POLL_INTERVAL"`
+    secretKey string `env:"KEY"`
 }
 
 type Address struct {
@@ -56,6 +57,7 @@ func parseFlags() {
     flag.Var(&configData.address, "a", "server address (host:port)")
     flag.Int64Var(&configData.reportInterval, "r", 10, "report interval")
     flag.Int64Var(&configData.pollInterval, "p", 2, "poll interval")
+    flag.StringVar(&configData.secretKey, "k", "", "secret key for signing data")
     flag.Parse() 
 
     
@@ -72,5 +74,8 @@ func parseFlags() {
         if intVal, err := strconv.ParseInt(v, 10, 64); err == nil {
             configData.pollInterval = intVal
         }
+    }
+    if v, ok := os.LookupEnv("KEY"); ok {
+        configData.secretKey = v
     }
 }

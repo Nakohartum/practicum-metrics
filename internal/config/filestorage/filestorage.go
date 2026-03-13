@@ -10,7 +10,7 @@ import (
 )
 
 type FileWriter struct {
-	file *os.File
+	file    *os.File
 	encoder *json.Encoder
 }
 
@@ -22,24 +22,24 @@ func NewFileWriter(filename string) (*FileWriter, error) {
 	}
 
 	return &FileWriter{
-		file: file,
+		file:    file,
 		encoder: json.NewEncoder(file),
 	}, nil
 }
 
-func (fw *FileWriter) WriteData (data []models.Metrics) error {
+func (fw *FileWriter) WriteData(data []models.Metrics) error {
 	err := fw.file.Truncate(0)
 	if err != nil {
 		return err
 	}
-	fw.file.Seek(0,0)
+	fw.file.Seek(0, 0)
 	return fw.encoder.Encode(data)
 }
 
-func (fw *FileWriter) WriteOneData (models []models.Metrics, data models.Metrics) error {
+func (fw *FileWriter) WriteOneData(models []models.Metrics, data models.Metrics) error {
 	models = append(models, data)
 	for i := range models {
-		if models[i].MType == data.MType && models[i].ID == data.ID{
+		if models[i].MType == data.MType && models[i].ID == data.ID {
 			models[i] = data
 		}
 	}
@@ -51,8 +51,8 @@ type FileReader struct {
 }
 
 func NewFileReader(filename string) (*FileReader, error) {
-	file, err := os.OpenFile(filename, os.O_RDONLY | os.O_CREATE, 0666)
-	
+	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_CREATE, 0666)
+
 	if err != nil {
 		return nil, err
 	}
@@ -62,22 +62,22 @@ func NewFileReader(filename string) (*FileReader, error) {
 }
 
 func (fr *FileReader) ReadData() ([]models.Metrics, error) {
-	 if _, err := fr.file.Seek(0, 0); err != nil {
-        return nil, err
-    }
+	if _, err := fr.file.Seek(0, 0); err != nil {
+		return nil, err
+	}
 
-    var data []models.Metrics
-    dec := json.NewDecoder(fr.file) 
-    if err := dec.Decode(&data); err != nil {
-        if errors.Is(err, io.EOF) {
-            return []models.Metrics{}, nil
-        }
-        return nil, err
-    }
-    return data, nil
+	var data []models.Metrics
+	dec := json.NewDecoder(fr.file)
+	if err := dec.Decode(&data); err != nil {
+		if errors.Is(err, io.EOF) {
+			return []models.Metrics{}, nil
+		}
+		return nil, err
+	}
+	return data, nil
 }
 
-type FileManager struct{
+type FileManager struct {
 	fileReader FileReader
 	fileWriter FileWriter
 }
@@ -107,7 +107,7 @@ func (fm *FileManager) WriteOneData(data models.Metrics) error {
 
 func (fm *FileManager) FileExists() error {
 	if fm.fileReader.file == nil || fm.fileWriter.file == nil {
-		return errors.New("file does not exist")
+		return ErrFileDoesNotExist
 	}
 	return nil
 }

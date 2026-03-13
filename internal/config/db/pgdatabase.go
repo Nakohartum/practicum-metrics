@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,10 +11,6 @@ import (
 
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/jackc/pgx/v5"
-)
-
-var (
-	errNoConnectionToClose = errors.New("no connection to close")
 )
 
 type PgDatabaseAdapter struct {
@@ -73,8 +68,7 @@ func (dbAdapter *PgDatabaseAdapter) runMigrations(ctx context.Context, dir strin
 	return nil
 }
 
-
-func (dbAdapter *PgDatabaseAdapter) Close(ctx context.Context) error{
+func (dbAdapter *PgDatabaseAdapter) Close(ctx context.Context) error {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
 
@@ -85,7 +79,7 @@ func (dbAdapter *PgDatabaseAdapter) Close(ctx context.Context) error{
 	return err
 }
 
-func (dbAdapter *PgDatabaseAdapter) CheckConnection(ctx context.Context) error{
+func (dbAdapter *PgDatabaseAdapter) CheckConnection(ctx context.Context) error {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
 
@@ -119,7 +113,7 @@ func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error {
 				model.Value, model.ID, model.MType,
 			)
 		default:
-			return errors.New("no such metric type")
+			return errMetricTypeNotSupported
 		}
 	}
 	return err
@@ -135,7 +129,7 @@ func (dbAdapter *PgDatabaseAdapter) GetAll() []models.Metrics {
 		return results
 	}
 
-	for rows.Next(){
+	for rows.Next() {
 		var m models.Metrics
 
 		rows.Scan(&m.ID, &m.MType, &m.Delta, &m.Value)
@@ -151,18 +145,18 @@ func (dbAdapter *PgDatabaseAdapter) GetData(metricType string, metricKey string)
 	var res models.Metrics
 
 	row := dbAdapter.db.QueryRow(context.Background(), "select * from metric where id = $1 and metric_type = $2", metricKey, metricType)
-	
+
 	err := row.Scan(&res.ID, &res.MType, &res.Delta, &res.Value)
 
 	return res, err
-} 
+}
 
 func (dbAdapter *PgDatabaseAdapter) SetMultipleDataViaTransaction(ctx context.Context, metrics []models.Metrics) error {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
 
 	transaction, err := dbAdapter.db.BeginTx(ctx, pgx.TxOptions{})
-	
+
 	if err != nil {
 		return err
 	}
