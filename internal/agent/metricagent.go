@@ -14,11 +14,14 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"sync"
 	"time"
 
 	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/go-resty/resty/v2"
+	memory "github.com/shirou/gopsutil/v4/mem"
+	cpu "github.com/shirou/gopsutil/v4/cpu"
 )
 
 
@@ -26,112 +29,155 @@ import (
 type MetricsAgent struct {
 	PollInterval   time.Duration
 	ReportInterval time.Duration
-	gaugeMetrics   map[string]float64
-	counterMetrics map[string]int64
+	snapshots      chan snapshot
 	key            string
 	client         *resty.Client
+	mu             sync.RWMutex
+	lastSnapshot   snapshot
 	sleep          func(time.Duration)
+	pollCount      int
+	rateLimit      int
 }
 
-func NewAgentMetrics(pollInterval, reportInterval int, key string) *MetricsAgent {
+func NewAgentMetrics(pollInterval, reportInterval, rateLimit int, key string) *MetricsAgent {
 	var agent = MetricsAgent{
 		PollInterval:   time.Duration(pollInterval * int(time.Second)),
 		ReportInterval: time.Duration(reportInterval * int(time.Second)),
-		gaugeMetrics:   make(map[string]float64),
-		counterMetrics: make(map[string]int64),
 		key: key,
 		client:         resty.New().SetHeader("Content-Type", "application/json"),
+		pollCount: 0,
+		rateLimit: rateLimit,
 	}
 	internalLogger.AttachLoggingToRequest(agent.client)
 	return &agent
 }
+func (mA *MetricsAgent) collectSnapshot() snapshot {
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
 
-func (mA *MetricsAgent) setRuntimeGaugeMetrics() {
-	var m runtime.MemStats
+	mA.pollCount++
 
-	runtime.ReadMemStats(&m)
+	metrics := make([]models.Metrics, 0)
+	v, _ := memory.VirtualMemory()
+	cpuTotal, err := cpu.Percent(time.Second, false)
+	if err != nil {
+		cpuTotal[0] = 0
+	}
+	metrics = append(metrics,
+		newGaugeMetric("Alloc", float64(mem.Alloc)),
+		newGaugeMetric("BuckHashSys", float64(mem.BuckHashSys)),
+		newGaugeMetric("Frees", float64(mem.Frees)),
+		newGaugeMetric("GCCPUFraction", mem.GCCPUFraction),
+		newGaugeMetric("GCSys", float64(mem.GCSys)),
+		newGaugeMetric("HeapAlloc", float64(mem.HeapAlloc)),
+		newGaugeMetric("HeapInuse", float64(mem.HeapInuse)),
+		newGaugeMetric("HeapIdle", float64(mem.HeapIdle)),
+		newGaugeMetric("HeapObjects", float64(mem.HeapObjects)),
+		newGaugeMetric("HeapReleased", float64(mem.HeapReleased)),
+		newGaugeMetric("HeapSys", float64(mem.HeapSys)),
+		newGaugeMetric("LastGC", float64(mem.LastGC)),
+		newGaugeMetric("Lookups", float64(mem.Lookups)),
+		newGaugeMetric("MCacheInuse", float64(mem.MCacheInuse)),
+		newGaugeMetric("MCacheSys", float64(mem.MCacheSys)),
+		newGaugeMetric("MSpanInuse", float64(mem.MSpanInuse)),
+		newGaugeMetric("MSpanSys", float64(mem.MSpanSys)),
+		newGaugeMetric("Mallocs", float64(mem.Mallocs)),
+		newGaugeMetric("NextGC", float64(mem.NextGC)),
+		newGaugeMetric("NumForcedGC", float64(mem.NumForcedGC)),
+		newGaugeMetric("NumGC", float64(mem.NumGC)),
+		newGaugeMetric("OtherSys", float64(mem.OtherSys)),
+		newGaugeMetric("PauseTotalNs", float64(mem.PauseTotalNs)),
+		newGaugeMetric("StackInuse", float64(mem.StackInuse)),
+		newGaugeMetric("StackSys", float64(mem.StackSys)),
+		newGaugeMetric("Sys", float64(mem.Sys)),
+		newGaugeMetric("TotalAlloc", float64(mem.TotalAlloc)),
+		newGaugeMetric("RandomValue", rand.Float64()*100),
+		newGaugeMetric("TotalMemory", float64(v.Total)),
+		newGaugeMetric("FreeMemory", float64(v.Free)),
+		newGaugeMetric("CPUutilization1", float64(cpuTotal[0])),
+		newCounterMetric("PollCount", int64(mA.pollCount)),
+	)
 
-	mA.setGaugeMetric("Alloc", float64(m.Alloc))
-	mA.setGaugeMetric("BuckHashSys", float64(m.BuckHashSys))
-	mA.setGaugeMetric("Frees", float64(m.Frees))
-	mA.setGaugeMetric("GCCPUFraction", m.GCCPUFraction)
-	mA.setGaugeMetric("GCSys", float64(m.GCSys))
-	mA.setGaugeMetric("HeapAlloc", float64(m.HeapAlloc))
-	mA.setGaugeMetric("HeapInuse", float64(m.HeapInuse))
-	mA.setGaugeMetric("HeapIdle", float64(m.HeapIdle))
-	mA.setGaugeMetric("HeapObjects", float64(m.HeapObjects))
-	mA.setGaugeMetric("HeapReleased", float64(m.HeapReleased))
-	mA.setGaugeMetric("HeapSys", float64(m.HeapSys))
-	mA.setGaugeMetric("LastGC", float64(m.LastGC))
-	mA.setGaugeMetric("Lookups", float64(m.Lookups))
-	mA.setGaugeMetric("MCacheInuse", float64(m.MCacheInuse))
-	mA.setGaugeMetric("MCacheSys", float64(m.MCacheSys))
-	mA.setGaugeMetric("MSpanInuse", float64(m.MSpanInuse))
-	mA.setGaugeMetric("MSpanSys", float64(m.MSpanSys))
-	mA.setGaugeMetric("Mallocs", float64(m.Mallocs))
-	mA.setGaugeMetric("NextGC", float64(m.NextGC))
-	mA.setGaugeMetric("NumForcedGC", float64(m.NumForcedGC))
-	mA.setGaugeMetric("NumGC", float64(m.NumGC))
-	mA.setGaugeMetric("OtherSys", float64(m.OtherSys))
-	mA.setGaugeMetric("PauseTotalNs", float64(m.PauseTotalNs))
-	mA.setGaugeMetric("StackInuse", float64(m.StackInuse))
-	mA.setGaugeMetric("StackSys", float64(m.StackSys))
-	mA.setGaugeMetric("Sys", float64(m.Sys))
-	mA.setGaugeMetric("TotalAlloc", float64(m.TotalAlloc))
-	mA.setGaugeMetric("RandomValue", rand.Float64()*100)
+	return snapshot{Metrics: metrics}
 }
 
-func (mA *MetricsAgent) setGaugeMetric(metricName string, value float64) {
-	mA.gaugeMetrics[metricName] = value
+func newGaugeMetric(id string, value float64) models.Metrics {
+	return models.Metrics{
+		ID:    id,
+		MType: "gauge",
+		Value: &value,
+	}
 }
 
-func (mA *MetricsAgent) setCounterMetrics() {
-	mA.counterMetrics["PollCount"]++
+func newCounterMetric(id string, delta int64) models.Metrics {
+	return models.Metrics{
+		ID:    id,
+		MType: "counter",
+		Delta: &delta,
+	}
 }
+
 
 type metricsBytes = []byte
 
-func (mA *MetricsAgent) sendGaugeMetrics() []metricsBytes {
-	metrics := make([]metricsBytes, 0)
+func (mA *MetricsAgent) collectLoop(ctx context.Context) {
+	
+	ticker := time.NewTicker(mA.PollInterval)
+	defer ticker.Stop()
 
-	for k, v := range mA.gaugeMetrics {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			snap := mA.collectSnapshot()
 
-		metric := models.Metrics{
-			ID:    k,
-			MType: "gauge",
-			Value: &v,
+			mA.mu.Lock()
+			mA.lastSnapshot = snap
+			mA.mu.Unlock()
 		}
-
-		jsonData, err := json.Marshal(metric)
-
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		metrics = append(metrics, jsonData)
 	}
-	return metrics
 }
 
-func (mA *MetricsAgent) sendCounterMetrics() []metricsBytes {
-	metrics := make([]metricsBytes, 0)
-	for k, v := range mA.counterMetrics {
-
-		metric := models.Metrics{
-			ID:    k,
-			MType: "counter",
-			Delta: &v,
+func (mA *MetricsAgent) sendWorker(ctx context.Context, host string) {
+	for {
+		select{
+		case <- ctx.Done():
+			return
+		case snap, ok := <- mA.snapshots:
+			if !ok{
+				return
+			}
+			mA.sendSnapshot(snap, host)
 		}
-
-		jsonData, err := json.Marshal(metric)
-
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		metrics = append(metrics, jsonData)
 	}
-	return metrics
+}
+
+func (mA *MetricsAgent) reportLoop(ctx context.Context) {
+	ticker := time.NewTicker(mA.ReportInterval)
+	defer ticker.Stop()
+	defer close(mA.snapshots)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			mA.mu.RLock()
+			snap := mA.lastSnapshot
+			mA.mu.RUnlock()
+
+			if len(snap.Metrics) == 0 {
+				continue
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case mA.snapshots <- snap:
+			}
+		}
+	}
 }
 
 func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, timeoutDuration time.Duration) error{
@@ -169,59 +215,78 @@ func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, ti
 	return nil
 }
 
-func (mA *MetricsAgent) sendMetrics(path string) {
-	metricsToSend := make([]metricsBytes, 0)
-	metricsToSend = append(metricsToSend, mA.sendGaugeMetrics()...)
-	metricsToSend = append(metricsToSend, mA.sendCounterMetrics()...)
+func (mA *MetricsAgent) sendSnapshot(s snapshot, path string) {
 	endpoint := fmt.Sprintf("%s/update", path)
-	
 	attempts := 3
-	for start := 0; start < len(metricsToSend); start += 10 {
-		timeoutDuration := 1;
+
+	for start := 0; start < len(s.Metrics); start += 10 {
+		timeoutDuration := 1
 		end := start + 10
-		if end > len(metricsToSend) {
-			end = len(metricsToSend)
+		if end > len(s.Metrics) {
+			end = len(s.Metrics)
 		}
 
-		for _, v := range metricsToSend[start:end] {
+		for _, metric := range s.Metrics[start:end] {
+			jsonData, err := json.Marshal(metric)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
 			for attempt := 0; attempt < attempts; attempt++ {
-				err := mA.sendDataWithDeadline(v, endpoint, time.Duration(timeoutDuration * int(time.Second)))
+				err := mA.sendDataWithDeadline(
+					jsonData,
+					endpoint,
+					time.Duration(timeoutDuration)*time.Second,
+				)
+
 				var opError *net.OpError
 				if err != nil && (errors.Is(err, context.DeadlineExceeded) || errors.As(err, &opError)) {
-					time.Sleep(time.Duration(timeoutDuration * int(time.Second)))
+					time.Sleep(time.Duration(timeoutDuration) * time.Second)
 					timeoutDuration += 2
-				} else {
-					break
+					continue
 				}
+
+				if err != nil {
+					log.Println(err)
+				}
+				break
 			}
 		}
 	}
 }
 
 func (mA *MetricsAgent) Run(ctx context.Context, host string) {
+	var wg sync.WaitGroup
+	mA.snapshots = make(chan snapshot, mA.rateLimit)
+	
 	if mA.sleep == nil {
 		mA.sleep = time.Sleep
 	}
-	elapsed := time.Duration(0)
-	endpoint := host
+	wg.Add(1)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-		mA.setRuntimeGaugeMetrics()
-		elapsed += mA.PollInterval
+	go func() {
+		defer wg.Done()
+		mA.collectLoop(ctx)
+	}()
 
-		if elapsed >= mA.ReportInterval {
-			mA.setCounterMetrics()
-			mA.sendMetrics(endpoint)
-			elapsed = 0
-		}
-		mA.sleep(mA.PollInterval)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		mA.reportLoop(ctx)
+	}()
+
+	for i := 0; i < mA.rateLimit; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			mA.sendWorker(ctx, host)
+		}()
 	}
+
+	wg.Wait()
 }
+
 
 func compressData(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
@@ -249,3 +314,4 @@ func makeHash(body []byte, key string) string {
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:])
 }
+

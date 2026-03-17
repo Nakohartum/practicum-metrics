@@ -16,121 +16,80 @@ import (
 )
 
 func TestNewAgentMetrics(t *testing.T) {
-	tests := []struct {
-		name           string
-		pollInterval   int
-		reportInterval int
-		key            string
-	}{
-		{name: "creates agent", pollInterval: 1, reportInterval: 2, key: "secret"},
-	}
+	agent := NewAgentMetrics(1, 2, 3, "secret")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			agent := NewAgentMetrics(tt.pollInterval, tt.reportInterval, tt.key)
-
-			require.NotNil(t, agent)
-			assert.Equal(t, time.Second, agent.PollInterval)
-			assert.Equal(t, 2*time.Second, agent.ReportInterval)
-			assert.Equal(t, tt.key, agent.key)
-			assert.NotNil(t, agent.client)
-		})
-	}
+	require.NotNil(t, agent)
+	assert.Equal(t, time.Second, agent.PollInterval)
+	assert.Equal(t, 2*time.Second, agent.ReportInterval)
+	assert.Equal(t, 3, agent.rateLimit)
+	assert.Equal(t, "secret", agent.key)
+	assert.NotNil(t, agent.client)
 }
 
-func TestMetricsAgentSetGaugeMetric(t *testing.T) {
-	tests := []struct {
-		name  string
-		key   string
-		value float64
-	}{
-		{name: "stores gauge metric", key: "Alloc", value: 10.5},
+func TestCollectSnapshot(t *testing.T) {
+	agent := NewAgentMetrics(1, 1, 1, "")
+
+	got := agent.collectSnapshot()
+
+	require.NotEmpty(t, got.Metrics)
+	assert.Equal(t, 1, agent.pollCount)
+
+	metricsByID := make(map[string]models.Metrics, len(got.Metrics))
+	for _, metric := range got.Metrics {
+		metricsByID[metric.ID] = metric
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			agent := NewAgentMetrics(1, 1, "")
+	randomMetric, ok := metricsByID["RandomValue"]
+	require.True(t, ok)
+	assert.Equal(t, models.Gauge, randomMetric.MType)
+	require.NotNil(t, randomMetric.Value)
 
-			agent.setGaugeMetric(tt.key, tt.value)
-
-			assert.Equal(t, tt.value, agent.gaugeMetrics[tt.key])
-		})
-	}
+	pollCountMetric, ok := metricsByID["PollCount"]
+	require.True(t, ok)
+	assert.Equal(t, models.Counter, pollCountMetric.MType)
+	require.NotNil(t, pollCountMetric.Delta)
+	assert.EqualValues(t, 1, *pollCountMetric.Delta)
 }
 
-func TestMetricsAgentSetCounterMetrics(t *testing.T) {
-	tests := []struct {
-		name  string
-		start int64
-		want  int64
-	}{
-		{name: "increments poll count", start: 0, want: 1},
-		{name: "increments existing poll count", start: 2, want: 3},
+func TestSendSnapshot(t *testing.T) {
+	var got []models.Metrics
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		if r.Header.Get("Content-Encoding") == "gzip" {
+			reader, err := gzip.NewReader(bytes.NewReader(body))
+			require.NoError(t, err)
+			body, err = io.ReadAll(reader)
+			require.NoError(t, err)
+			require.NoError(t, reader.Close())
+		}
+
+		var metric models.Metrics
+		require.NoError(t, json.Unmarshal(body, &metric))
+		got = append(got, metric)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	agent := NewAgentMetrics(1, 1, 1, "")
+	snap := snapshot{
+		Metrics: []models.Metrics{
+			newGaugeMetric("Alloc", 1.5),
+			newCounterMetric("PollCount", 2),
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			agent := NewAgentMetrics(1, 1, "")
-			agent.counterMetrics["PollCount"] = tt.start
+	agent.sendSnapshot(snap, server.URL)
 
-			agent.setCounterMetrics()
-
-			assert.Equal(t, tt.want, agent.counterMetrics["PollCount"])
-		})
-	}
+	require.Len(t, got, 2)
+	assert.Equal(t, "Alloc", got[0].ID)
+	assert.Equal(t, models.Gauge, got[0].MType)
+	assert.Equal(t, "PollCount", got[1].ID)
+	assert.Equal(t, models.Counter, got[1].MType)
 }
 
-func TestMetricsAgentSendGaugeMetrics(t *testing.T) {
-	tests := []struct {
-		name string
-		seed map[string]float64
-	}{
-		{name: "marshals all gauge metrics", seed: map[string]float64{"Alloc": 1.5, "Sys": 2.5}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			agent := NewAgentMetrics(1, 1, "")
-			agent.gaugeMetrics = tt.seed
-
-			got := agent.sendGaugeMetrics()
-
-			require.Len(t, got, len(tt.seed))
-			for _, raw := range got {
-				var metric models.Metrics
-				require.NoError(t, json.Unmarshal(raw, &metric))
-				assert.Equal(t, models.Gauge, metric.MType)
-			}
-		})
-	}
-}
-
-func TestMetricsAgentSendCounterMetrics(t *testing.T) {
-	tests := []struct {
-		name string
-		seed map[string]int64
-	}{
-		{name: "marshals all counter metrics", seed: map[string]int64{"PollCount": 3}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			agent := NewAgentMetrics(1, 1, "")
-			agent.counterMetrics = tt.seed
-
-			got := agent.sendCounterMetrics()
-
-			require.Len(t, got, len(tt.seed))
-			for _, raw := range got {
-				var metric models.Metrics
-				require.NoError(t, json.Unmarshal(raw, &metric))
-				assert.Equal(t, models.Counter, metric.MType)
-			}
-		})
-	}
-}
-
-func TestMetricsAgentSendDataWithDeadline(t *testing.T) {
+func TestSendDataWithDeadline(t *testing.T) {
 	tests := []struct {
 		name             string
 		key              string
@@ -171,7 +130,7 @@ func TestMetricsAgentSendDataWithDeadline(t *testing.T) {
 			}))
 			defer server.Close()
 
-			agent := NewAgentMetrics(1, 1, tt.key)
+			agent := NewAgentMetrics(1, 1, 1, tt.key)
 			err := agent.sendDataWithDeadline([]byte(`{"id":"hits"}`), server.URL, time.Second)
 
 			if tt.wantErr {
@@ -185,26 +144,15 @@ func TestMetricsAgentSendDataWithDeadline(t *testing.T) {
 }
 
 func TestCompressData(t *testing.T) {
-	tests := []struct {
-		name string
-		body string
-	}{
-		{name: "compresses payload", body: `{"id":"hits"}`},
-	}
+	compressed, err := compressData([]byte(`{"id":"hits"}`))
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			compressed, err := compressData([]byte(tt.body))
-
-			require.NoError(t, err)
-			reader, err := gzip.NewReader(bytes.NewReader(compressed))
-			require.NoError(t, err)
-			decoded, err := io.ReadAll(reader)
-			require.NoError(t, err)
-			require.NoError(t, reader.Close())
-			assert.Equal(t, tt.body, string(decoded))
-		})
-	}
+	require.NoError(t, err)
+	reader, err := gzip.NewReader(bytes.NewReader(compressed))
+	require.NoError(t, err)
+	decoded, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.NoError(t, reader.Close())
+	assert.Equal(t, `{"id":"hits"}`, string(decoded))
 }
 
 func TestMakeHash(t *testing.T) {
