@@ -148,6 +148,10 @@ func HashMiddleware(key string) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
+			if r.Method != http.MethodPost {
+				next.ServeHTTP(w, r)
+				return 
+			}
 			headerHash := r.Header.Get("HashSHA256")
 			body, err := io.ReadAll(r.Body)
 			if err != nil {

@@ -110,6 +110,7 @@ func setupRouter(service service.Service) *chi.Mux {
 	router := chi.NewRouter()
 
 	router.Use(middleware.StripSlashes)
+	router.Use(handler.HashMiddleware(configData.secretKey))
 	router.Use(handler.GetZippedDataMiddleware)
 	router.Use(handler.GiveZippedDataMiddleware)
 	if configData.FileWork.storeInterval == 0 {

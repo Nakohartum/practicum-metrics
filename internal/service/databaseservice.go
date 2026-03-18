@@ -127,6 +127,5 @@ func (s *DatabaseService) SetDataUsingMetrics(metrics []models.Metrics) error {
 			continue
 		}
 	}
-	_ = firstErr
-	return nil
+	return firstErr
 }
