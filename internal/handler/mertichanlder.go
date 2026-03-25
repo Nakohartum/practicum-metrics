@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"html/template"
@@ -248,13 +247,13 @@ func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (mh *MetricsHandler) Ping(ctx context.Context) http.Handler {
+func (mh *MetricsHandler) Ping() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 
-		err := mh.service.Ping(ctx)
+		err := mh.service.Ping(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

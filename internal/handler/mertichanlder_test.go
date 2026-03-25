@@ -550,7 +550,7 @@ func TestMetricsHandlerPing(t *testing.T) {
 			req := httptest.NewRequest(tt.method, "/ping", nil)
 			rr := httptest.NewRecorder()
 
-			handler.Ping(context.Background()).ServeHTTP(rr, req)
+			handler.Ping().ServeHTTP(rr, req)
 
 			assert.Equal(t, tt.wantStatus, rr.Code)
 		})

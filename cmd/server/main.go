@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	mConfig "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
 	dbConfig "github.com/Nakohartum/practicum-metrics/internal/config/db"
 	fConfig "github.com/Nakohartum/practicum-metrics/internal/config/filestorage"
+	mConfig "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
 	"github.com/Nakohartum/practicum-metrics/internal/handler"
 	"github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
@@ -26,38 +26,38 @@ func main() {
 	parseFlags()
 	memRepo := setupMemRepo()
 	var service service.Service = setupMemService(memRepo)
+	appCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	if configData.FileWork.fileStoragePath != ""{
+	if configData.FileWork.fileStoragePath != "" {
 		service = setupFileService(memRepo)
 	}
 
-	if configData.DatabaseAddress.connectionString != ""{
+	if configData.DatabaseAddress.connectionString != "" {
 		service = setupDatabaseService(memRepo)
 	}
 
-	server := setupServer(service)
+	server := setupServer(service, appCtx)
 	go func() {
 		log.Println("Server started")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Could not listen on %s: %v\n", configData.Address.String(), err)
 		}
 	}()
-	
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
-	<-quit
+	<-appCtx.Done()
+	stop()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
-	err := service.SaveDataAfterExit(ctx)
+
+	err := service.SaveDataAfterExit(shutdownCtx)
 
 	if err != nil {
 		log.Println(err)
 	}
 
-	if err := server.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
@@ -78,9 +78,10 @@ func setupMemService(repo *repository.MemRepo) *service.MetricsService {
 
 func setupDatabaseService(memRepo *repository.MemRepo) *service.DatabaseService {
 	dbAdapter := dbConfig.NewPgDatabaseAdapter(configData.DatabaseAddress.connectionString)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	err := dbAdapter.Open(ctx)
-	if err != nil{
+	if err != nil {
 		log.Fatal(err)
 	}
 	repo := repository.NewDatabaseRepository(dbAdapter)
@@ -88,7 +89,7 @@ func setupDatabaseService(memRepo *repository.MemRepo) *service.DatabaseService 
 	return dbService
 }
 
-func setupFileService(memRepo *repository.MemRepo) *service.FileService{
+func setupFileService(memRepo *repository.MemRepo) *service.FileService {
 	fWriter, err := fConfig.NewFileWriter(configData.FileWork.fileStoragePath)
 	if err != nil {
 		log.Fatal(err)
@@ -105,7 +106,6 @@ func setupFileService(memRepo *repository.MemRepo) *service.FileService{
 	return fService
 }
 
-
 func setupRouter(service service.Service) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -119,30 +119,30 @@ func setupRouter(service service.Service) *chi.Mux {
 	return router
 }
 
-func setupServer(service service.Service) http.Server {
+func setupServer(service service.Service, appCtx context.Context) http.Server {
 	router := setupRouter(service)
-	
+
 	metricsHandler := handler.NewMetricsHandler(service)
 
 	if configData.FileWork.restore {
-		
+
 		res := service.GetAll()
 		if len(res) == 0 {
 			log.Printf("no data")
 		}
 		for _, metric := range res {
-			switch metric.MType{
-				case models.Gauge:
-					service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
-				case models.Counter:
-					service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))
+			switch metric.MType {
+			case models.Gauge:
+				service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
+			case models.Counter:
+				service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))
 			}
 		}
 	}
 
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", metricsHandler.ServePage)
-		r.Get("/ping", metricsHandler.Ping(context.Background()).ServeHTTP)
+		r.Get("/ping", metricsHandler.Ping().ServeHTTP)
 		r.Post("/update", logger.AttachLoggingToResponse(metricsHandler.UpdateMetricsDataHandle()))
 		r.Post("/update/{metricType}/{metricName}/{metricValue}", logger.AttachLoggingToResponse(metricsHandler.SetMetricDataHandle()))
 		r.Route("/value", func(r chi.Router) {
@@ -153,7 +153,7 @@ func setupServer(service service.Service) http.Server {
 	})
 	router.Post("/value/", logger.AttachLoggingToResponse(metricsHandler.GetMetricsByNameHandle()))
 	if configData.FileWork.storeInterval != 0 {
-		go service.RunSaving(context.Background())
+		go service.RunSaving(appCtx)
 	}
 
 	return http.Server{

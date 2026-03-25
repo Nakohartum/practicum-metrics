@@ -42,21 +42,21 @@ func (s *MetricsService) Ping(ctx context.Context) error {
 }
 
 func (s *MetricsService) RunSaving(ctx context.Context) {
-
+	ticker := time.NewTicker(s.storeInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-		}
-		time.Sleep(s.storeInterval)
-		data := s.repo.GetAll()
-		for _, v := range data {
-			switch v.MType {
-			case models.Counter:
-				s.repo.SetData(v.MType, v.ID, strconv.FormatInt(*v.Delta, 10))
-			case models.Gauge:
-				s.repo.SetData(v.MType, v.ID, strconv.FormatFloat(*v.Value, 'f', -1, 64))
+		case <-ticker.C:
+			data := s.repo.GetAll()
+			for _, v := range data {
+				switch v.MType {
+				case models.Counter:
+					s.repo.SetData(v.MType, v.ID, strconv.FormatInt(*v.Delta, 10))
+				case models.Gauge:
+					s.repo.SetData(v.MType, v.ID, strconv.FormatFloat(*v.Value, 'f', -1, 64))
+				}
 			}
 		}
 	}
@@ -67,6 +67,9 @@ func (s *MetricsService) SaveAllData() error {
 }
 
 func (s *MetricsService) SaveDataAfterExit(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return nil
 }
 

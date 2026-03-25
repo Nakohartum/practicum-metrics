@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/jackc/pgx/v5"
@@ -18,6 +19,8 @@ type PgDatabaseAdapter struct {
 	db               *pgx.Conn
 	mu               sync.Mutex
 }
+
+const dbOperationTimeout = 5 * time.Second
 
 func NewPgDatabaseAdapter(connectionString string) *PgDatabaseAdapter {
 	return &PgDatabaseAdapter{
@@ -90,25 +93,28 @@ func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
 
+	ctx, cancel := context.WithTimeout(context.Background(), dbOperationTimeout)
+	defer cancel()
+
 	var count int64
-	row := dbAdapter.db.QueryRow(context.Background(), "SELECT COUNT(*) FROM metric where id = $1 and metric_type = $2", model.ID, model.MType)
+	row := dbAdapter.db.QueryRow(ctx, "SELECT COUNT(*) FROM metric where id = $1 and metric_type = $2", model.ID, model.MType)
 	err := row.Scan(&count)
 	if err != nil {
 		return err
 	}
 	if count == 0 {
-		_, err = dbAdapter.db.Exec(context.Background(), "INSERT INTO metric(id, metric_type, delta, value) VALUES($1, $2, $3, $4)", model.ID, model.MType, model.Delta, model.Value)
+		_, err = dbAdapter.db.Exec(ctx, "INSERT INTO metric(id, metric_type, delta, value) VALUES($1, $2, $3, $4)", model.ID, model.MType, model.Delta, model.Value)
 	} else {
 		switch model.MType {
 		case models.Counter:
 			_, err = dbAdapter.db.Exec(
-				context.Background(),
+				ctx,
 				"UPDATE metric SET delta = COALESCE(delta, 0) + $1 WHERE id = $2 AND metric_type = $3",
 				model.Delta, model.ID, model.MType,
 			)
 		case models.Gauge:
 			_, err = dbAdapter.db.Exec(
-				context.Background(),
+				ctx,
 				"UPDATE metric SET value = $1 WHERE id = $2 AND metric_type = $3",
 				model.Value, model.ID, model.MType,
 			)
@@ -123,11 +129,15 @@ func (dbAdapter *PgDatabaseAdapter) GetAll() []models.Metrics {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
 
+	ctx, cancel := context.WithTimeout(context.Background(), dbOperationTimeout)
+	defer cancel()
+
 	results := make([]models.Metrics, 0)
-	rows, err := dbAdapter.db.Query(context.Background(), "select * from metric")
+	rows, err := dbAdapter.db.Query(ctx, "select * from metric")
 	if err != nil {
 		return results
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var m models.Metrics
@@ -142,9 +152,12 @@ func (dbAdapter *PgDatabaseAdapter) GetData(metricType string, metricKey string)
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
 
+	ctx, cancel := context.WithTimeout(context.Background(), dbOperationTimeout)
+	defer cancel()
+
 	var res models.Metrics
 
-	row := dbAdapter.db.QueryRow(context.Background(), "select * from metric where id = $1 and metric_type = $2", metricKey, metricType)
+	row := dbAdapter.db.QueryRow(ctx, "select * from metric where id = $1 and metric_type = $2", metricKey, metricType)
 
 	err := row.Scan(&res.ID, &res.MType, &res.Delta, &res.Value)
 

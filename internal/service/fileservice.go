@@ -64,21 +64,21 @@ func (fs *FileService) SetData(metricType, metricKey, metricValue string) error 
 }
 
 func (fs *FileService) RunSaving(ctx context.Context) {
-
+	ticker := time.NewTicker(fs.storeInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-		}
-		time.Sleep(fs.storeInterval)
-		data := fs.memRepo.GetAll()
-		if len(data) == 0 {
-			return
-		}
-		err := fs.WriteData(data)
-		if err != nil {
-			log.Fatalf("Error writing data: %v", err)
+		case <-ticker.C:
+			data := fs.memRepo.GetAll()
+			if len(data) == 0 {
+				continue
+			}
+			err := fs.WriteData(data)
+			if err != nil {
+				log.Fatalf("Error writing data: %v", err)
+			}
 		}
 	}
 }
@@ -89,6 +89,9 @@ func (fs *FileService) Ping(ctx context.Context) error {
 }
 
 func (fs *FileService) SaveDataAfterExit(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	data, err := fs.repo.ReadData()
 	if err != nil {

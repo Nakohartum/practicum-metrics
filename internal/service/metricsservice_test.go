@@ -83,6 +83,7 @@ func TestMetricsServiceSetDataUsingMetrics(t *testing.T) {
 		name    string
 		metrics []models.Metrics
 		mock    func(*mocks.MockStorage)
+		wantErr error
 	}{
 		{
 			name: "sets counter and gauge",
@@ -100,6 +101,7 @@ func TestMetricsServiceSetDataUsingMetrics(t *testing.T) {
 			metrics: []models.Metrics{
 				{ID: "c2", MType: models.Counter},
 			},
+			wantErr: ErrCounterDeltaRequired,
 		},
 	}
 
@@ -115,6 +117,12 @@ func TestMetricsServiceSetDataUsingMetrics(t *testing.T) {
 
 			svc := NewMetricsService(repository.NewMemRepo(storage), 1)
 			err := svc.SetDataUsingMetrics(tt.metrics)
+
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tt.wantErr)
+				return
+			}
 
 			require.NoError(t, err)
 		})

@@ -64,26 +64,30 @@ func (s *DatabaseService) Ping(ctx context.Context) error {
 }
 
 func (s *DatabaseService) RunSaving(ctx context.Context) {
+	ticker := time.NewTicker(s.storeInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-		}
-		time.Sleep(s.storeInterval)
-		data := s.memRepo.GetAll()
+		case <-ticker.C:
+			data := s.memRepo.GetAll()
 
-		if len(data) == 0 {
-			return
-		}
-		err := s.repo.SetAllData(data)
-		if err != nil {
-			log.Fatal(err)
+			if len(data) == 0 {
+				continue
+			}
+			err := s.repo.SetAllData(data)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 }
 
 func (s *DatabaseService) SaveDataAfterExit(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return s.SaveAllData()
 }
 
