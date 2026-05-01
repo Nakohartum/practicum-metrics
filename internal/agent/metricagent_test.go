@@ -53,7 +53,11 @@ func TestCollectSnapshot(t *testing.T) {
 
 func TestSendSnapshot(t *testing.T) {
 	var got []models.Metrics
+	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		assert.Equal(t, "/updates", r.URL.Path)
+
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
@@ -65,9 +69,7 @@ func TestSendSnapshot(t *testing.T) {
 			require.NoError(t, reader.Close())
 		}
 
-		var metric models.Metrics
-		require.NoError(t, json.Unmarshal(body, &metric))
-		got = append(got, metric)
+		require.NoError(t, json.Unmarshal(body, &got))
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -82,6 +84,7 @@ func TestSendSnapshot(t *testing.T) {
 
 	agent.sendSnapshot(snap, server.URL)
 
+	assert.Equal(t, 1, callCount)
 	require.Len(t, got, 2)
 	assert.Equal(t, "Alloc", got[0].ID)
 	assert.Equal(t, models.Gauge, got[0].MType)

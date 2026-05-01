@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -36,11 +37,7 @@ func readBody(r *http.Request) ([]byte, error) {
 }
 
 func decodeJSONBody[T any](r *http.Request, dst *T) error {
-	body, err := readBody(r)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(body, dst)
+	return json.NewDecoder(r.Body).Decode(dst)
 }
 
 type MetricsHandler struct {
@@ -277,22 +274,13 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
-		var metrics []models.Metrics
-		body, err := readBody(r)
+
+		metrics, err := decodeMetricsPayload(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		// Accept both batch array and single metric payload.
-		if err = json.Unmarshal(body, &metrics); err != nil {
-			var single models.Metrics
-			if errSingle := json.Unmarshal(body, &single); errSingle != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			metrics = []models.Metrics{single}
-		}
 		counterBatch := make(map[string]int64)
 		gaugeBatch := make(map[string]float64)
 
@@ -335,6 +323,47 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 	}
 
 	return http.HandlerFunc(fun)
+}
+
+func decodeMetricsPayload(r *http.Request) ([]models.Metrics, error) {
+	br := bufio.NewReader(r.Body)
+	first, err := firstNonSpaceByte(br)
+	if err != nil {
+		return nil, err
+	}
+	if err := br.UnreadByte(); err != nil {
+		return nil, err
+	}
+
+	decoder := json.NewDecoder(br)
+	if first == '[' {
+		var metrics []models.Metrics
+		if err := decoder.Decode(&metrics); err != nil {
+			return nil, err
+		}
+		return metrics, nil
+	}
+
+	var metric models.Metrics
+	if err := decoder.Decode(&metric); err != nil {
+		return nil, err
+	}
+	return []models.Metrics{metric}, nil
+}
+
+func firstNonSpaceByte(r *bufio.Reader) (byte, error) {
+	for {
+		b, err := r.ReadByte()
+		if err != nil {
+			return 0, err
+		}
+		switch b {
+		case ' ', '\n', '\r', '\t':
+			continue
+		default:
+			return b, nil
+		}
+	}
 }
 
 func (mh *MetricsHandler) setDataWithRetry(metricType, metricName, metricValue string) error {

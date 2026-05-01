@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/Nakohartum/practicum-metrics/internal/service"
 )
@@ -17,6 +18,12 @@ type gZipWriter struct {
 	zw          *gzip.Writer
 	gzipEnabled bool
 	wroteHeader bool
+}
+
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		return gzip.NewWriter(io.Discard)
+	},
 }
 
 func newGzipWriter(w http.ResponseWriter) *gZipWriter {
@@ -43,14 +50,19 @@ func (w *gZipWriter) WriteHeader(statusCode int) {
 	if strings.Contains(w.Header().Get("Content-Type"), "application/json") || strings.Contains(w.Header().Get("Content-Type"), "text/html") {
 		w.gzipEnabled = true
 		w.Header().Set("Content-Encoding", "gzip")
-		w.zw = gzip.NewWriter(w.ResponseWriter)
+		w.zw = gzipWriterPool.Get().(*gzip.Writer)
+		w.zw.Reset(w.ResponseWriter)
 	}
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
 func (w *gZipWriter) Close() error {
 	if w.gzipEnabled && w.zw != nil {
-		return w.zw.Close()
+		err := w.zw.Close()
+		w.zw.Reset(io.Discard)
+		gzipWriterPool.Put(w.zw)
+		w.zw = nil
+		return err
 	}
 	return nil
 }
@@ -150,7 +162,7 @@ func HashMiddleware(key string) func(http.Handler) http.Handler {
 			}
 			if r.Method != http.MethodPost {
 				next.ServeHTTP(w, r)
-				return 
+				return
 			}
 			headerHash := r.Header.Get("HashSHA256")
 			body, err := io.ReadAll(r.Body)

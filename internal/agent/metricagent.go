@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -20,11 +19,9 @@ import (
 	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/go-resty/resty/v2"
-	memory "github.com/shirou/gopsutil/v4/mem"
 	cpu "github.com/shirou/gopsutil/v4/cpu"
+	memory "github.com/shirou/gopsutil/v4/mem"
 )
-
-
 
 type MetricsAgent struct {
 	PollInterval   time.Duration
@@ -43,10 +40,10 @@ func NewAgentMetrics(pollInterval, reportInterval, rateLimit int, key string) *M
 	var agent = MetricsAgent{
 		PollInterval:   time.Duration(pollInterval * int(time.Second)),
 		ReportInterval: time.Duration(reportInterval * int(time.Second)),
-		key: key,
+		key:            key,
 		client:         resty.New().SetHeader("Content-Type", "application/json"),
-		pollCount: 0,
-		rateLimit: rateLimit,
+		pollCount:      0,
+		rateLimit:      rateLimit,
 	}
 	internalLogger.AttachLoggingToRequest(agent.client)
 	return &agent
@@ -57,7 +54,7 @@ func (mA *MetricsAgent) collectSnapshot() snapshot {
 
 	mA.pollCount++
 
-	metrics := make([]models.Metrics, 0)
+	metrics := make([]models.Metrics, 0, 32)
 	v, _ := memory.VirtualMemory()
 	cpuTotal, err := cpu.Percent(time.Second, false)
 	if err != nil {
@@ -117,11 +114,10 @@ func newCounterMetric(id string, delta int64) models.Metrics {
 	}
 }
 
-
 type metricsBytes = []byte
 
 func (mA *MetricsAgent) collectLoop(ctx context.Context) {
-	
+
 	ticker := time.NewTicker(mA.PollInterval)
 	defer ticker.Stop()
 
@@ -141,11 +137,11 @@ func (mA *MetricsAgent) collectLoop(ctx context.Context) {
 
 func (mA *MetricsAgent) sendWorker(ctx context.Context, host string) {
 	for {
-		select{
-		case <- ctx.Done():
+		select {
+		case <-ctx.Done():
 			return
-		case snap, ok := <- mA.snapshots:
-			if !ok{
+		case snap, ok := <-mA.snapshots:
+			if !ok {
 				return
 			}
 			mA.sendSnapshot(snap, host)
@@ -180,15 +176,15 @@ func (mA *MetricsAgent) reportLoop(ctx context.Context) {
 	}
 }
 
-func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, timeoutDuration time.Duration) error{
+func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, timeoutDuration time.Duration) error {
 	compressedData, err := compressData(v)
 	if err != nil {
 		log.Println(err)
 	}
 	hash := makeHash(compressedData, mA.key)
 	req := mA.client.
-	SetTimeout(timeoutDuration).
-	R().
+		SetTimeout(timeoutDuration).
+		R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetBody(compressedData)
@@ -199,8 +195,8 @@ func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, ti
 	if err != nil || resp.StatusCode() >= http.StatusBadRequest {
 		hash = makeHash(v, mA.key)
 		req := mA.client.
-		SetTimeout(timeoutDuration).
-		R().
+			SetTimeout(timeoutDuration).
+			R().
 			SetHeader("Content-Type", "application/json").
 			SetBody(v)
 
@@ -216,50 +212,41 @@ func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, ti
 }
 
 func (mA *MetricsAgent) sendSnapshot(s snapshot, path string) {
-	endpoint := fmt.Sprintf("%s/update", path)
+	endpoint := path + "/updates"
 	attempts := 3
+	timeoutDuration := 1
 
-	for start := 0; start < len(s.Metrics); start += 10 {
-		timeoutDuration := 1
-		end := start + 10
-		if end > len(s.Metrics) {
-			end = len(s.Metrics)
+	jsonData, err := json.Marshal(s.Metrics)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	for attempt := 0; attempt < attempts; attempt++ {
+		err := mA.sendDataWithDeadline(
+			jsonData,
+			endpoint,
+			time.Duration(timeoutDuration)*time.Second,
+		)
+
+		var opError *net.OpError
+		if err != nil && (errors.Is(err, context.DeadlineExceeded) || errors.As(err, &opError)) {
+			time.Sleep(time.Duration(timeoutDuration) * time.Second)
+			timeoutDuration += 2
+			continue
 		}
 
-		for _, metric := range s.Metrics[start:end] {
-			jsonData, err := json.Marshal(metric)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-
-			for attempt := 0; attempt < attempts; attempt++ {
-				err := mA.sendDataWithDeadline(
-					jsonData,
-					endpoint,
-					time.Duration(timeoutDuration)*time.Second,
-				)
-
-				var opError *net.OpError
-				if err != nil && (errors.Is(err, context.DeadlineExceeded) || errors.As(err, &opError)) {
-					time.Sleep(time.Duration(timeoutDuration) * time.Second)
-					timeoutDuration += 2
-					continue
-				}
-
-				if err != nil {
-					log.Println(err)
-				}
-				break
-			}
+		if err != nil {
+			log.Println(err)
 		}
+		break
 	}
 }
 
 func (mA *MetricsAgent) Run(ctx context.Context, host string) {
 	var wg sync.WaitGroup
 	mA.snapshots = make(chan snapshot, mA.rateLimit)
-	
+
 	if mA.sleep == nil {
 		mA.sleep = time.Sleep
 	}
@@ -287,7 +274,6 @@ func (mA *MetricsAgent) Run(ctx context.Context, host string) {
 	wg.Wait()
 }
 
-
 func compressData(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
 
@@ -308,10 +294,9 @@ func makeHash(body []byte, key string) string {
 	if key == "" {
 		return ""
 	}
-	data := make([]byte, 0, len(body) + len(key))
+	data := make([]byte, 0, len(body)+len(key))
 	data = append(data, body...)
 	data = append(data, key...)
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:])
 }
-
