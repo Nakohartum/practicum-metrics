@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Nakohartum/practicum-metrics/internal/audit"
 	dbConfig "github.com/Nakohartum/practicum-metrics/internal/config/db"
 	fConfig "github.com/Nakohartum/practicum-metrics/internal/config/filestorage"
 	mConfig "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
@@ -27,6 +28,7 @@ func main() {
 	memRepo := setupMemRepo()
 	var service service.Service = setupMemService(memRepo)
 	appCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	auditor := setupAuditor()
 	defer stop()
 
 	if configData.FileWork.fileStoragePath != "" {
@@ -37,7 +39,7 @@ func main() {
 		service = setupDatabaseService(memRepo)
 	}
 
-	server := setupServer(service, appCtx)
+	server := setupServer(service, auditor, appCtx)
 	go func() {
 		log.Println("Server started")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -119,10 +121,10 @@ func setupRouter(service service.Service) *chi.Mux {
 	return router
 }
 
-func setupServer(service service.Service, appCtx context.Context) http.Server {
+func setupServer(service service.Service, auditor *audit.Auditor, appCtx context.Context) http.Server {
 	router := setupRouter(service)
 
-	metricsHandler := handler.NewMetricsHandler(service)
+	metricsHandler := handler.NewMetricsHandler(service, auditor)
 
 	if configData.FileWork.restore {
 
@@ -160,4 +162,18 @@ func setupServer(service service.Service, appCtx context.Context) http.Server {
 		Addr:    configData.Address.String(),
 		Handler: router,
 	}
+}
+
+func setupAuditor() *audit.Auditor {
+	observers := make([]audit.Observer, 0)
+
+	if configData.AuditFile != "" {
+		observers = append(observers, audit.NewFileObserver(configData.AuditFile))
+	}
+
+	if configData.AuditUrl != "" {
+		observers = append(observers, audit.NewHTTPObserver(configData.AuditUrl, &http.Client{Timeout: 5 * time.Second}))
+	}
+
+	return audit.NewAuditor(observers...)
 }

@@ -13,6 +13,8 @@ type Config struct {
 	FileWork FileWork
 	DatabaseAddress DatabaseAddress
 	secretKey string `env:"KEY"`
+	AuditFile string `env:"AUDIT_FILE"`
+	AuditUrl string `env:"AUDIT_URL"`
 }
 
 type DatabaseAddress struct {
@@ -66,6 +68,8 @@ func parseFlags() {
 	flag.BoolVar(&configData.FileWork.restore, "r", false, "true for restore, false for not")
 	flag.StringVar(&configData.DatabaseAddress.connectionString, "d", "", "connection string for database")
 	flag.StringVar(&configData.secretKey, "k", "", "secret key for signing data")
+	flag.StringVar(&configData.AuditUrl, "audit-url", "", "path to audit log url")
+	flag.StringVar(&configData.AuditFile, "audit-file", "", "path to audit log file")
 	flag.Parse()
 
 	
@@ -99,5 +103,13 @@ func parseFlags() {
 
 	if v, ok := os.LookupEnv("KEY"); ok && v != ""{
 		configData.secretKey = v
+	}
+
+	if v, ok := os.LookupEnv("AUDIT_FILE"); ok && v != ""{
+		configData.AuditFile = v
+	}
+
+	if v, ok := os.LookupEnv("AUDIT_URL"); ok && v != ""{
+		configData.AuditUrl = v
 	}
 }

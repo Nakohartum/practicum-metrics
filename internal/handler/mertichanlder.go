@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/Nakohartum/practicum-metrics/internal/audit"
 	config "github.com/Nakohartum/practicum-metrics/internal/config/db"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
@@ -43,6 +45,7 @@ func decodeJSONBody[T any](r *http.Request, dst *T) error {
 
 type MetricsHandler struct {
 	service service.Service
+	auditor *audit.Auditor
 }
 
 type metricValidationError struct {
@@ -53,9 +56,15 @@ func (e metricValidationError) Error() string {
 	return e.message
 }
 
-func NewMetricsHandler(s service.Service) *MetricsHandler {
+func NewMetricsHandler(s service.Service, auditors ...*audit.Auditor) *MetricsHandler {
+	var auditor *audit.Auditor
+	if len(auditors) > 0 {
+		auditor = auditors[0]
+	}
+
 	return &MetricsHandler{
 		service: s,
+		auditor: auditor,
 	}
 }
 
@@ -90,6 +99,7 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 		}
 
 		w.WriteHeader(http.StatusOK)
+		mh.notifyAudit(r, []string{metric.ID})
 	}
 	return http.HandlerFunc(fun)
 }
@@ -120,7 +130,6 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(responseData)
-
 	}
 	return http.HandlerFunc(fun)
 }
@@ -146,6 +155,7 @@ func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 		}
 
 		w.WriteHeader(http.StatusOK)
+		mh.notifyAudit(r, []string{metricName})
 	}
 	return http.HandlerFunc(fun)
 }
@@ -178,7 +188,6 @@ func (mh *MetricsHandler) GetMetricDataHandle() http.Handler {
 		case models.Gauge:
 			w.Write([]byte(strconv.FormatFloat(*metricData.Value, 'f', -1, 64)))
 		}
-
 	}
 	return http.HandlerFunc(fun)
 }
@@ -308,14 +317,21 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 			}
 		}
 
+		metricsNames := make([]string, 0, len(counterBatch)+len(gaugeBatch))
+
 		for id, delta := range counterBatch {
-			_ = mh.setDataWithRetry(models.Counter, id, strconv.FormatInt(delta, 10))
+			if err := mh.setDataWithRetry(models.Counter, id, strconv.FormatInt(delta, 10)); err == nil {
+				metricsNames = append(metricsNames, id)
+			}
 		}
 
 		for id, value := range gaugeBatch {
-			_ = mh.setDataWithRetry(models.Gauge, id, strconv.FormatFloat(value, 'f', -1, 64))
+			if err := mh.setDataWithRetry(models.Gauge, id, strconv.FormatFloat(value, 'f', -1, 64)); err == nil {
+				metricsNames = append(metricsNames, id)
+			}
 		}
 		w.WriteHeader(http.StatusOK)
+		mh.notifyAudit(r, metricsNames)
 	}
 
 	return http.HandlerFunc(fun)
@@ -379,4 +395,24 @@ func getMetricValue(metric models.Metrics, strict bool) (string, bool, error) {
 		}
 		return "", true, nil
 	}
+}
+
+func (mh *MetricsHandler) notifyAudit(r *http.Request, metrics []string) {
+	if mh.auditor == nil || !mh.auditor.Enabled() || len(metrics) == 0 {
+		return
+	}
+
+	mh.auditor.Notify(r.Context(), audit.Event{
+		Ts:        time.Now().Unix(),
+		Metrics:   metrics,
+		IPAddress: clientIP(r),
+	})
+}
+
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nakohartum/practicum-metrics/internal/audit"
 	config "github.com/Nakohartum/practicum-metrics/internal/config/db"
 	"github.com/Nakohartum/practicum-metrics/internal/mocks"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
@@ -34,6 +35,15 @@ func withRouteParams(req *http.Request, params map[string]string) *http.Request 
 		routeCtx.URLParams.Add(key, value)
 	}
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+}
+
+type recordingAuditObserver struct {
+	events []audit.Event
+}
+
+func (o *recordingAuditObserver) Notify(ctx context.Context, event audit.Event) error {
+	o.events = append(o.events, event)
+	return nil
 }
 
 func TestRequireMethod(t *testing.T) {
@@ -223,6 +233,28 @@ func TestMetricsHandlerUpdateMetricsDataHandle(t *testing.T) {
 	}
 }
 
+func TestMetricsHandlerUpdateMetricsDataHandleNotifiesAudit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	svc := mocks.NewMockService(ctrl)
+	svc.EXPECT().SetData(models.Counter, "hits", "3").Return(nil)
+
+	observer := &recordingAuditObserver{}
+	handler := NewMetricsHandler(svc, audit.NewAuditor(observer))
+	req := httptest.NewRequest(http.MethodPost, "/update", strings.NewReader(`{"id":"hits","type":"counter","delta":3}`))
+	req.RemoteAddr = "192.168.0.42:12345"
+	rr := httptest.NewRecorder()
+
+	handler.UpdateMetricsDataHandle().ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Len(t, observer.events, 1)
+	assert.Equal(t, []string{"hits"}, observer.events[0].Metrics)
+	assert.Equal(t, "192.168.0.42", observer.events[0].IPAddress)
+	assert.NotZero(t, observer.events[0].Ts)
+}
+
 func TestMetricsHandlerGetMetricsByNameHandle(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -287,6 +319,28 @@ func TestMetricsHandlerGetMetricsByNameHandle(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMetricsHandlerGetMetricsByNameHandleDoesNotNotifyAudit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	svc := mocks.NewMockService(ctrl)
+	svc.EXPECT().GetData(models.Counter, "hits").Return(models.Metrics{
+		ID:    "hits",
+		MType: models.Counter,
+		Delta: ptrInt64(5),
+	}, nil)
+
+	observer := &recordingAuditObserver{}
+	handler := NewMetricsHandler(svc, audit.NewAuditor(observer))
+	req := httptest.NewRequest(http.MethodPost, "/value", strings.NewReader(`{"id":"hits","type":"counter"}`))
+	rr := httptest.NewRecorder()
+
+	handler.GetMetricsByNameHandle().ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Empty(t, observer.events)
 }
 
 func TestMetricsHandlerSetMetricDataHandle(t *testing.T) {
@@ -617,6 +671,26 @@ func TestMetricsHandlerSetMetricsDataHandle(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, rr.Code)
 		})
 	}
+}
+
+func TestMetricsHandlerSetMetricsDataHandleNotifiesOnlySavedMetrics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	svc := mocks.NewMockService(ctrl)
+	svc.EXPECT().SetData(models.Counter, "hits", "3").Return(nil)
+	svc.EXPECT().SetData(models.Gauge, "load", "1.5").Return(assert.AnError)
+
+	observer := &recordingAuditObserver{}
+	handler := NewMetricsHandler(svc, audit.NewAuditor(observer))
+	req := httptest.NewRequest(http.MethodPost, "/updates", strings.NewReader(`[{"id":"hits","type":"counter","delta":3},{"id":"load","type":"gauge","value":1.5}]`))
+	rr := httptest.NewRecorder()
+
+	handler.SetMetricsDataHandle().ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Len(t, observer.events, 1)
+	assert.Equal(t, []string{"hits"}, observer.events[0].Metrics)
 }
 
 func TestMetricsHandlerSetDataWithRetry(t *testing.T) {
