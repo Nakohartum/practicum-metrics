@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// Config contains server runtime settings parsed from flags and environment.
 type Config struct {
 	Address         Address
 	FileWork        FileWork
@@ -17,18 +18,22 @@ type Config struct {
 	AuditUrl        string `env:"AUDIT_URL"`
 }
 
+// DatabaseAddress stores the database connection string.
 type DatabaseAddress struct {
 	connectionString string `env:"DATABASE_DSN"`
 }
 
+// Address stores the server listen address.
 type Address struct {
 	url string `env:"ADDRESS"`
 }
 
+// String returns the address as host:port.
 func (a *Address) String() string {
 	return a.url
 }
 
+// Set validates and stores the address value.
 func (a *Address) Set(value string) error {
 	res := strings.Split(value, ":")
 
@@ -40,6 +45,7 @@ func (a *Address) Set(value string) error {
 	return nil
 }
 
+// FileWork contains file persistence settings.
 type FileWork struct {
 	storeInterval   int64  `env:"STORE_INTERVAL"`
 	fileStoragePath string `env:"FILE_STORAGE_PATH"`

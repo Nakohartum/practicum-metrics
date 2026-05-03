@@ -15,6 +15,7 @@ import (
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
+// PgDatabaseAdapter stores metrics in PostgreSQL using pgx.
 type PgDatabaseAdapter struct {
 	connectionString string
 	db               *pgx.Conn
@@ -23,12 +24,14 @@ type PgDatabaseAdapter struct {
 
 const dbOperationTimeout = 5 * time.Second
 
+// NewPgDatabaseAdapter creates a PostgreSQL adapter for the connection string.
 func NewPgDatabaseAdapter(connectionString string) *PgDatabaseAdapter {
 	return &PgDatabaseAdapter{
 		connectionString: connectionString,
 	}
 }
 
+// Open connects to PostgreSQL and applies migrations.
 func (dbAdapter *PgDatabaseAdapter) Open(ctx context.Context) error {
 	connection, err := pgx.Connect(ctx, dbAdapter.connectionString)
 	if err != nil {
@@ -72,6 +75,7 @@ func (dbAdapter *PgDatabaseAdapter) runMigrations(ctx context.Context, dir strin
 	return nil
 }
 
+// Close closes the PostgreSQL connection.
 func (dbAdapter *PgDatabaseAdapter) Close(ctx context.Context) error {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
@@ -83,6 +87,7 @@ func (dbAdapter *PgDatabaseAdapter) Close(ctx context.Context) error {
 	return err
 }
 
+// CheckConnection pings the PostgreSQL connection.
 func (dbAdapter *PgDatabaseAdapter) CheckConnection(ctx context.Context) error {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
@@ -90,6 +95,7 @@ func (dbAdapter *PgDatabaseAdapter) CheckConnection(ctx context.Context) error {
 	return dbAdapter.db.Ping(ctx)
 }
 
+// SetData inserts or updates one metric in PostgreSQL.
 func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
@@ -126,6 +132,7 @@ func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error {
 	return err
 }
 
+// GetAll returns all metrics from PostgreSQL.
 func (dbAdapter *PgDatabaseAdapter) GetAll() []models.Metrics {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
@@ -149,6 +156,7 @@ func (dbAdapter *PgDatabaseAdapter) GetAll() []models.Metrics {
 	return results
 }
 
+// GetData returns one metric from PostgreSQL by type and name.
 func (dbAdapter *PgDatabaseAdapter) GetData(metricType string, metricKey string) (models.Metrics, error) {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
@@ -165,6 +173,7 @@ func (dbAdapter *PgDatabaseAdapter) GetData(metricType string, metricKey string)
 	return res, err
 }
 
+// SetMultipleDataViaTransaction inserts metrics in one PostgreSQL transaction.
 func (dbAdapter *PgDatabaseAdapter) SetMultipleDataViaTransaction(ctx context.Context, metrics []models.Metrics) error {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()

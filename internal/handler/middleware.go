@@ -92,6 +92,7 @@ func (gr *gZipReader) Close() error {
 	return gr.r.Close()
 }
 
+// GetZippedDataMiddleware decompresses gzip request bodies.
 func GetZippedDataMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
@@ -112,6 +113,7 @@ func GetZippedDataMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// GiveZippedDataMiddleware compresses gzip responses for clients that accept gzip.
 func GiveZippedDataMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
@@ -137,6 +139,7 @@ func (w *statusWriter) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
+// SaveAfterPostMiddleware persists metrics after successful POST requests.
 func SaveAfterPostMiddleware(saver service.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +156,7 @@ func SaveAfterPostMiddleware(saver service.Service) func(http.Handler) http.Hand
 	}
 }
 
+// HashMiddleware verifies and adds SHA-256 request and response signatures.
 func HashMiddleware(key string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

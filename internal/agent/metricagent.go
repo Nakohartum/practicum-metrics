@@ -24,6 +24,7 @@ import (
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
+// MetricsAgent periodically collects runtime metrics and reports them to a server.
 type MetricsAgent struct {
 	PollInterval   time.Duration
 	ReportInterval time.Duration
@@ -37,6 +38,7 @@ type MetricsAgent struct {
 	rateLimit      int
 }
 
+// NewAgentMetrics creates a MetricsAgent with intervals in seconds.
 func NewAgentMetrics(pollInterval, reportInterval, rateLimit int, key string) *MetricsAgent {
 	var agent = MetricsAgent{
 		PollInterval:   time.Duration(pollInterval * int(time.Second)),
@@ -244,6 +246,7 @@ func (mA *MetricsAgent) sendSnapshot(s snapshot, path string) {
 	}
 }
 
+// Run starts collection and reporting loops until the context is canceled.
 func (mA *MetricsAgent) Run(ctx context.Context, host string) {
 	var wg sync.WaitGroup
 	mA.snapshots = make(chan snapshot, mA.rateLimit)

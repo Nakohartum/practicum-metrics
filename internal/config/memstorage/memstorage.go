@@ -7,22 +7,26 @@ import (
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
+// MemStorage keeps metric values in memory.
 type MemStorage struct {
 	data *models.StorageModel
 }
 
+// NewMemStorage creates MemStorage around an existing storage model.
 func NewMemStorage(model *models.StorageModel) *MemStorage {
 	return &MemStorage{
 		data: model,
 	}
 }
 
+// NewMemStubStorage creates empty MemStorage for default in-memory operation.
 func NewMemStubStorage() *MemStorage {
 	return &MemStorage{
 		data: models.NewStorageModel(),
 	}
 }
 
+// GetData returns one metric by type and name.
 func (ms *MemStorage) GetData(metricType, key string) (models.Metrics, error) {
 	switch metricType {
 	case models.Counter:
@@ -45,6 +49,7 @@ func (ms *MemStorage) GetData(metricType, key string) (models.Metrics, error) {
 	return models.Metrics{}, ErrNotExists
 }
 
+// SetData stores a metric value by type and name.
 func (ms *MemStorage) SetData(metricType, key, value string) error {
 	switch metricType {
 	case models.Counter:
@@ -66,6 +71,7 @@ func (ms *MemStorage) SetData(metricType, key, value string) error {
 	return ErrMetricNotFound
 }
 
+// GetAll returns all in-memory metrics.
 func (ms *MemStorage) GetAll() []models.Metrics {
 	var res []models.Metrics
 
@@ -88,6 +94,7 @@ func (ms *MemStorage) GetAll() []models.Metrics {
 	return res
 }
 
+// Ping reports whether in-memory storage is available.
 func (ms *MemStorage) Ping(ctx context.Context) error {
 	return nil
 }

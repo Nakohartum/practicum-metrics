@@ -8,6 +8,8 @@ import (
 )
 
 // ErrorClassification тип для классификации ошибок
+
+// PGErrorClassification describes whether a PostgreSQL error can be retried.
 type PGErrorClassification int
 
 const (
@@ -19,8 +21,11 @@ const (
 )
 
 // PostgresErrorClassifier классификатор ошибок PostgreSQL
+
+// PostgresErrorClassifier classifies PostgreSQL errors for retry handling.
 type PostgresErrorClassifier struct{}
 
+// NewPostgresErrorClassifier creates a PostgreSQL error classifier.
 func NewPostgresErrorClassifier() *PostgresErrorClassifier {
 	return &PostgresErrorClassifier{}
 }

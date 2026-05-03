@@ -9,11 +9,13 @@ import (
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
+// FileWriter writes metric data to a JSON file.
 type FileWriter struct {
 	file    *os.File
 	encoder *json.Encoder
 }
 
+// NewFileWriter opens a metric file writer for the provided filename.
 func NewFileWriter(filename string) (*FileWriter, error) {
 	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0666)
 
@@ -27,6 +29,7 @@ func NewFileWriter(filename string) (*FileWriter, error) {
 	}, nil
 }
 
+// WriteData replaces file contents with the provided metrics.
 func (fw *FileWriter) WriteData(data []models.Metrics) error {
 	err := fw.file.Truncate(0)
 	if err != nil {
@@ -36,6 +39,7 @@ func (fw *FileWriter) WriteData(data []models.Metrics) error {
 	return fw.encoder.Encode(data)
 }
 
+// WriteOneData writes or replaces one metric in the provided metric slice.
 func (fw *FileWriter) WriteOneData(models []models.Metrics, data models.Metrics) error {
 	models = append(models, data)
 	for i := range models {
@@ -46,10 +50,12 @@ func (fw *FileWriter) WriteOneData(models []models.Metrics, data models.Metrics)
 	return fw.WriteData(models)
 }
 
+// FileReader reads metric data from a JSON file.
 type FileReader struct {
 	file *os.File
 }
 
+// NewFileReader opens a metric file reader for the provided filename.
 func NewFileReader(filename string) (*FileReader, error) {
 	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_CREATE, 0666)
 
@@ -61,6 +67,7 @@ func NewFileReader(filename string) (*FileReader, error) {
 	}, nil
 }
 
+// ReadData reads all metrics from the file.
 func (fr *FileReader) ReadData() ([]models.Metrics, error) {
 	if _, err := fr.file.Seek(0, 0); err != nil {
 		return nil, err
@@ -77,11 +84,13 @@ func (fr *FileReader) ReadData() ([]models.Metrics, error) {
 	return data, nil
 }
 
+// FileManager combines file reading and writing operations.
 type FileManager struct {
 	fileReader FileReader
 	fileWriter FileWriter
 }
 
+// NewFileManager creates a FileManager from reader and writer components.
 func NewFileManager(reader *FileReader, writer *FileWriter) *FileManager {
 	return &FileManager{
 		fileReader: *reader,
@@ -89,14 +98,17 @@ func NewFileManager(reader *FileReader, writer *FileWriter) *FileManager {
 	}
 }
 
+// WriteData writes all metrics to file storage.
 func (fm *FileManager) WriteData(data []models.Metrics) error {
 	return fm.fileWriter.WriteData(data)
 }
 
+// ReadData reads all metrics from file storage.
 func (fm *FileManager) ReadData() ([]models.Metrics, error) {
 	return fm.fileReader.ReadData()
 }
 
+// WriteOneData writes or replaces a single metric in file storage.
 func (fm *FileManager) WriteOneData(data models.Metrics) error {
 	metrics, err := fm.fileReader.ReadData()
 	if err != nil {
@@ -105,6 +117,7 @@ func (fm *FileManager) WriteOneData(data models.Metrics) error {
 	return fm.fileWriter.WriteOneData(metrics, data)
 }
 
+// FileExists checks that both reader and writer files are available.
 func (fm *FileManager) FileExists() error {
 	if fm.fileReader.file == nil || fm.fileWriter.file == nil {
 		return ErrFileDoesNotExist

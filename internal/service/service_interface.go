@@ -6,6 +6,7 @@ import (
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
+// Service defines metric operations used by HTTP handlers.
 type Service interface {
 	GetData(string, string) (models.Metrics, error)
 	SetData(string, string, string) error

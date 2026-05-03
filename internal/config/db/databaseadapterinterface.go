@@ -6,6 +6,7 @@ import (
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
+// DatabaseAdapter defines database operations required by metric repositories.
 type DatabaseAdapter interface {
 	Open(ctx context.Context) error
 	Close(ctx context.Context) error

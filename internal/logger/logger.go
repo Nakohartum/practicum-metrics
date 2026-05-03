@@ -17,6 +17,7 @@ var timeKey = loggerKey("start")
 
 var sugar = *logger.Sugar()
 
+// AttachLoggingToRequest adds outgoing request logging hooks to a Resty client.
 func AttachLoggingToRequest(r *resty.Client) {
 	r.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
 		ctx := context.WithValue(r.Context(), timeKey, time.Now())
@@ -52,6 +53,7 @@ func (lrw *loggingResponseWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// AttachLoggingToResponse wraps an HTTP handler with response logging.
 func AttachLoggingToResponse(h http.Handler) http.HandlerFunc {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		lrw := &loggingResponseWriter{

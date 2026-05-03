@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// Config contains agent runtime settings parsed from flags and environment.
 type Config struct {
 	address        Address
 	reportInterval int64  `env:"REPORT_INTERVAL"`
@@ -16,10 +17,12 @@ type Config struct {
 	rateLimit      int64  `env:"RATE_LIMIT"`
 }
 
+// Address stores the metrics server address.
 type Address struct {
 	host string `env:"ADDRESS"`
 }
 
+// String returns the address as an HTTP URL.
 func (a *Address) String() string {
 	host, port, ok := strings.Cut(a.host, ":")
 	if !ok {
@@ -35,6 +38,7 @@ func (a *Address) String() string {
 	return "http://" + host + ":" + port
 }
 
+// Set validates and stores the address value.
 func (a *Address) Set(value string) error {
 	res := strings.Split(value, ":")
 

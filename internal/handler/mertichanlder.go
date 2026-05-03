@@ -41,6 +41,7 @@ func decodeJSONBody[T any](r *http.Request, dst *T) error {
 	return json.NewDecoder(r.Body).Decode(dst)
 }
 
+// MetricsHandler exposes HTTP handlers for metric operations.
 type MetricsHandler struct {
 	service service.Service
 	auditor *audit.Auditor
@@ -54,6 +55,7 @@ func (e metricValidationError) Error() string {
 	return e.message
 }
 
+// NewMetricsHandler creates a MetricsHandler with an optional auditor.
 func NewMetricsHandler(s service.Service, auditors ...*audit.Auditor) *MetricsHandler {
 	var auditor *audit.Auditor
 	if len(auditors) > 0 {
@@ -71,6 +73,7 @@ func (mh *MetricsHandler) checkError(err error) config.PGErrorClassification {
 	return validator.Classify(err)
 }
 
+// UpdateMetricsDataHandle returns a handler for updating one JSON metric.
 func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		var metric models.Metrics
@@ -102,6 +105,7 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 	return http.HandlerFunc(fun)
 }
 
+// GetMetricsByNameHandle returns a handler for reading one JSON metric.
 func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		var metricToSearch models.Metrics
@@ -132,6 +136,7 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 	return http.HandlerFunc(fun)
 }
 
+// SetMetricDataHandle returns a handler for updating one metric from URL params.
 func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodPost) {
@@ -158,6 +163,7 @@ func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 	return http.HandlerFunc(fun)
 }
 
+// GetMetricDataHandle returns a handler for reading one metric from URL params.
 func (mh *MetricsHandler) GetMetricDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodGet) {
@@ -190,11 +196,13 @@ func (mh *MetricsHandler) GetMetricDataHandle() http.Handler {
 	return http.HandlerFunc(fun)
 }
 
+// PageHandler renders an HTML page with stored metrics.
 type PageHandler struct {
 	service repository.Storage
 	tpl     *template.Template
 }
 
+// NewPageHandler creates a PageHandler for the provided storage.
 func NewPageHandler(s repository.Storage) *PageHandler {
 	const page = `
 <!doctype html>
@@ -237,6 +245,7 @@ func NewPageHandler(s repository.Storage) *PageHandler {
 	}
 }
 
+// ServePage writes the metrics overview HTML page.
 func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
@@ -254,6 +263,7 @@ func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Ping returns a handler for storage health checks.
 func (mh *MetricsHandler) Ping() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodGet) {
@@ -270,6 +280,7 @@ func (mh *MetricsHandler) Ping() http.Handler {
 	return http.HandlerFunc(fun)
 }
 
+// SetMetricsDataHandle returns a handler for updating a batch of JSON metrics.
 func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodPost) {

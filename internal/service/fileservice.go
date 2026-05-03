@@ -10,12 +10,14 @@ import (
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 )
 
+// FileService provides metric operations backed by a file repository.
 type FileService struct {
 	repo          *repository.FileRepo
 	memRepo       *repository.MemRepo
 	storeInterval time.Duration
 }
 
+// NewFileService creates a FileService with a save interval in seconds.
 func NewFileService(r *repository.FileRepo, mr *repository.MemRepo, storeInterval int) *FileService {
 	return &FileService{
 		repo:          r,
@@ -24,10 +26,12 @@ func NewFileService(r *repository.FileRepo, mr *repository.MemRepo, storeInterva
 	}
 }
 
+// WriteData writes all metrics to the file repository.
 func (fs *FileService) WriteData(data []models.Metrics) error {
 	return fs.repo.WriteData(data)
 }
 
+// GetData returns one metric from file storage by type and name.
 func (fs *FileService) GetData(metricType, metricKey string) (models.Metrics, error) {
 	values, err := fs.repo.ReadData()
 
@@ -43,6 +47,7 @@ func (fs *FileService) GetData(metricType, metricKey string) (models.Metrics, er
 	return models.Metrics{}, ErrMetricNotFound
 }
 
+// GetAll returns all metrics from file storage.
 func (fs *FileService) GetAll() []models.Metrics {
 	values, err := fs.repo.ReadData()
 
@@ -52,6 +57,7 @@ func (fs *FileService) GetAll() []models.Metrics {
 	return values
 }
 
+// SetData stores a metric in memory and persists it to file storage.
 func (fs *FileService) SetData(metricType, metricKey, metricValue string) error {
 	var model models.Metrics
 	fs.memRepo.SetData(metricType, metricKey, metricValue)
@@ -63,6 +69,7 @@ func (fs *FileService) SetData(metricType, metricKey, metricValue string) error 
 	return fs.repo.WriteOneData(model)
 }
 
+// RunSaving periodically writes in-memory metrics to file storage.
 func (fs *FileService) RunSaving(ctx context.Context) {
 	ticker := time.NewTicker(fs.storeInterval)
 	defer ticker.Stop()
@@ -83,11 +90,13 @@ func (fs *FileService) RunSaving(ctx context.Context) {
 	}
 }
 
+// Ping checks that file storage can be read.
 func (fs *FileService) Ping(ctx context.Context) error {
 	_, err := fs.repo.ReadData()
 	return err
 }
 
+// SaveDataAfterExit writes data during graceful shutdown.
 func (fs *FileService) SaveDataAfterExit(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -105,11 +114,13 @@ func (fs *FileService) SaveDataAfterExit(ctx context.Context) error {
 	return nil
 }
 
+// SaveAllData writes all in-memory metrics to file storage.
 func (fs *FileService) SaveAllData() error {
 	values := fs.memRepo.GetAll()
 	return fs.repo.WriteData(values)
 }
 
+// SetDataUsingMetrics stores a batch of metric models.
 func (fs *FileService) SetDataUsingMetrics(metrics []models.Metrics) error {
 	var firstErr error
 	for _, metric := range metrics {

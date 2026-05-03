@@ -9,11 +9,13 @@ import (
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 )
 
+// MetricsService provides metric operations backed by in-memory storage.
 type MetricsService struct {
 	repo          *repository.MemRepo
 	storeInterval time.Duration
 }
 
+// NewMetricsService creates a MetricsService with a save interval in seconds.
 func NewMetricsService(r *repository.MemRepo, storeInterval int) *MetricsService {
 	return &MetricsService{
 		repo:          r,
@@ -21,6 +23,7 @@ func NewMetricsService(r *repository.MemRepo, storeInterval int) *MetricsService
 	}
 }
 
+// GetData returns one metric by type and name.
 func (s *MetricsService) GetData(metricType, metricKey string) (models.Metrics, error) {
 	if metricKey == "" {
 		return models.Metrics{}, ErrMetricNameRequired
@@ -29,18 +32,22 @@ func (s *MetricsService) GetData(metricType, metricKey string) (models.Metrics, 
 
 }
 
+// SetData stores a metric value by type and name.
 func (s *MetricsService) SetData(metricType, metricKey, metricValue string) error {
 	return s.repo.SetData(metricType, metricKey, metricValue)
 }
 
+// GetAll returns all stored metrics.
 func (s *MetricsService) GetAll() []models.Metrics {
 	return s.repo.GetAll()
 }
 
+// Ping checks that the underlying storage is available.
 func (s *MetricsService) Ping(ctx context.Context) error {
 	return s.repo.Ping(ctx)
 }
 
+// RunSaving periodically persists data until the context is canceled.
 func (s *MetricsService) RunSaving(ctx context.Context) {
 	ticker := time.NewTicker(s.storeInterval)
 	defer ticker.Stop()
@@ -62,10 +69,12 @@ func (s *MetricsService) RunSaving(ctx context.Context) {
 	}
 }
 
+// SaveAllData persists all current metrics.
 func (s *MetricsService) SaveAllData() error {
 	return nil
 }
 
+// SaveDataAfterExit persists data during graceful shutdown.
 func (s *MetricsService) SaveDataAfterExit(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -73,6 +82,7 @@ func (s *MetricsService) SaveDataAfterExit(ctx context.Context) error {
 	return nil
 }
 
+// SetDataUsingMetrics stores a batch of metric models.
 func (s *MetricsService) SetDataUsingMetrics(metrics []models.Metrics) error {
 	var firstErr error
 	for _, v := range metrics {
