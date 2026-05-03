@@ -12,6 +12,7 @@ import (
 var logger, _ = zap.NewDevelopment()
 
 type loggerKey string
+
 var timeKey = loggerKey("start")
 
 var sugar = *logger.Sugar()
@@ -51,13 +52,12 @@ func (lrw *loggingResponseWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
-
 func AttachLoggingToResponse(h http.Handler) http.HandlerFunc {
-	logFn := func (w http.ResponseWriter, r *http.Request)  {
+	logFn := func(w http.ResponseWriter, r *http.Request) {
 		lrw := &loggingResponseWriter{
 			ResponseWriter: w,
-			status: 200,
-			size: 0,
+			status:         200,
+			size:           0,
 		}
 		h.ServeHTTP(lrw, r)
 

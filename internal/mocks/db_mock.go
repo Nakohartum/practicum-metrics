@@ -8,8 +8,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	gomock "github.com/golang/mock/gomock"
+
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 // MockDatabaseAdapter is a mock of DatabaseAdapter interface.

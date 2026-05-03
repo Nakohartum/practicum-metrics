@@ -11,12 +11,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/Nakohartum/practicum-metrics/internal/audit"
 	config "github.com/Nakohartum/practicum-metrics/internal/config/db"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
-	"github.com/go-chi/chi/v5"
 )
 
 func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {

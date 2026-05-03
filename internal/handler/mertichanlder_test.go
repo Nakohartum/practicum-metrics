@@ -9,16 +9,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Nakohartum/practicum-metrics/internal/audit"
-	config "github.com/Nakohartum/practicum-metrics/internal/config/db"
-	"github.com/Nakohartum/practicum-metrics/internal/mocks"
-	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang/mock/gomock"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Nakohartum/practicum-metrics/internal/audit"
+	config "github.com/Nakohartum/practicum-metrics/internal/config/db"
+	"github.com/Nakohartum/practicum-metrics/internal/mocks"
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 func ptrInt64(v int64) *int64 {

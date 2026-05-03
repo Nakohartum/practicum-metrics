@@ -9,30 +9,30 @@ import (
 )
 
 type Config struct {
-	Address Address
-	FileWork FileWork
+	Address         Address
+	FileWork        FileWork
 	DatabaseAddress DatabaseAddress
-	secretKey string `env:"KEY"`
-	AuditFile string `env:"AUDIT_FILE"`
-	AuditUrl string `env:"AUDIT_URL"`
+	secretKey       string `env:"KEY"`
+	AuditFile       string `env:"AUDIT_FILE"`
+	AuditUrl        string `env:"AUDIT_URL"`
 }
 
 type DatabaseAddress struct {
 	connectionString string `env:"DATABASE_DSN"`
 }
 
-type Address struct{
-	url string  `env:"ADDRESS"`
+type Address struct {
+	url string `env:"ADDRESS"`
 }
 
-func (a *Address) String() string{
+func (a *Address) String() string {
 	return a.url
 }
 
-func (a *Address) Set(value string) error{
+func (a *Address) Set(value string) error {
 	res := strings.Split(value, ":")
 
-	if len(res) != 2{
+	if len(res) != 2 {
 		return fmt.Errorf("bad address %q, want host:port", value)
 	}
 
@@ -41,9 +41,9 @@ func (a *Address) Set(value string) error{
 }
 
 type FileWork struct {
-	storeInterval int64 `env:"STORE_INTERVAL"`
+	storeInterval   int64  `env:"STORE_INTERVAL"`
 	fileStoragePath string `env:"FILE_STORAGE_PATH"`
-	restore bool `env:"RESTORE"`
+	restore         bool   `env:"RESTORE"`
 }
 
 var configData = Config{
@@ -51,9 +51,9 @@ var configData = Config{
 		url: "localhost:8080",
 	},
 	FileWork: FileWork{
-		storeInterval: 2,
+		storeInterval:   2,
 		fileStoragePath: "",
-		restore: false,
+		restore:         false,
 	},
 	DatabaseAddress: DatabaseAddress{
 		connectionString: "",
@@ -61,7 +61,7 @@ var configData = Config{
 }
 
 func parseFlags() {
-	
+
 	flag.Var(&configData.Address, "a", "server address (host:port)")
 	flag.Int64Var(&configData.FileWork.storeInterval, "i", 2, "store interval in seconds")
 	flag.StringVar(&configData.FileWork.fileStoragePath, "f", "", "path to store data")
@@ -72,7 +72,6 @@ func parseFlags() {
 	flag.StringVar(&configData.AuditFile, "audit-file", "", "path to audit log file")
 	flag.Parse()
 
-	
 	if v, ok := os.LookupEnv("ADDRESS"); ok && v != "" {
 		_ = configData.Address.Set(v)
 	}
@@ -101,15 +100,15 @@ func parseFlags() {
 		configData.DatabaseAddress.connectionString = v
 	}
 
-	if v, ok := os.LookupEnv("KEY"); ok && v != ""{
+	if v, ok := os.LookupEnv("KEY"); ok && v != "" {
 		configData.secretKey = v
 	}
 
-	if v, ok := os.LookupEnv("AUDIT_FILE"); ok && v != ""{
+	if v, ok := os.LookupEnv("AUDIT_FILE"); ok && v != "" {
 		configData.AuditFile = v
 	}
 
-	if v, ok := os.LookupEnv("AUDIT_URL"); ok && v != ""{
+	if v, ok := os.LookupEnv("AUDIT_URL"); ok && v != "" {
 		configData.AuditUrl = v
 	}
 }

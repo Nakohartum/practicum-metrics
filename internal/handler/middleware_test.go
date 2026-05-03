@@ -10,10 +10,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Nakohartum/practicum-metrics/internal/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Nakohartum/practicum-metrics/internal/mocks"
 )
 
 func gzipBody(t *testing.T, payload string) io.Reader {

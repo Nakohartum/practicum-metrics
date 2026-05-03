@@ -6,9 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 func closeFileHandles(t *testing.T, reader *FileReader, writer *FileWriter) {
@@ -31,7 +32,7 @@ func TestReadData(t *testing.T) {
 		{name: "empty file returns empty slice", content: "", wantLen: 0},
 		{name: "invalid json returns error", content: "{invalid", wantErr: true},
 		{
-			name: "valid json returns metrics",
+			name:    "valid json returns metrics",
 			content: `[{"id":"g1","type":"gauge","value":1.5}]`,
 			wantLen: 1,
 		},

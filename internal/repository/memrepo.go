@@ -8,7 +8,6 @@ import (
 
 type MemRepo struct {
 	storage Storage
-	
 }
 
 func NewMemRepo(config Storage) *MemRepo {
@@ -25,7 +24,7 @@ func (mr *MemRepo) SetData(metricType, key, value string) error {
 	return mr.storage.SetData(metricType, key, value)
 }
 
-func (mr *MemRepo) GetAll() []models.Metrics{
+func (mr *MemRepo) GetAll() []models.Metrics {
 	return mr.storage.GetAll()
 }
 

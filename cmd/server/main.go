@@ -10,6 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+
 	"github.com/Nakohartum/practicum-metrics/internal/audit"
 	dbConfig "github.com/Nakohartum/practicum-metrics/internal/config/db"
 	fConfig "github.com/Nakohartum/practicum-metrics/internal/config/filestorage"
@@ -19,8 +22,6 @@ import (
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 func main() {

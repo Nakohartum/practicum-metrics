@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
-	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/jackc/pgx/v5"
+
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 type PgDatabaseAdapter struct {

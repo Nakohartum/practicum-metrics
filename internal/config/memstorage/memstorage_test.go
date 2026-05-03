@@ -4,23 +4,24 @@ import (
 	"context"
 	"testing"
 
-	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 func TestSetData(t *testing.T) {
 	tests := []struct {
-		name          string
-		metricType    string
-		key           string
-		value         string
-		startCounter  int64
-		wantCounter   int64
-		wantGauge     float64
-		checkCounter  bool
-		checkGauge    bool
-		wantErr       bool
+		name         string
+		metricType   string
+		key          string
+		value        string
+		startCounter int64
+		wantCounter  int64
+		wantGauge    float64
+		checkCounter bool
+		checkGauge   bool
+		wantErr      bool
 	}{
 		{
 			name:         "counter increments existing value",

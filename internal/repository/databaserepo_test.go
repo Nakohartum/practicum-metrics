@@ -3,11 +3,12 @@ package repository
 import (
 	"testing"
 
-	"github.com/Nakohartum/practicum-metrics/internal/mocks"
-	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Nakohartum/practicum-metrics/internal/mocks"
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 func TestDatabaseRepositorySetAllData(t *testing.T) {

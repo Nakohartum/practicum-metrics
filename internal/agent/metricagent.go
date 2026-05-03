@@ -16,11 +16,12 @@ import (
 	"sync"
 	"time"
 
-	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
-	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/go-resty/resty/v2"
 	cpu "github.com/shirou/gopsutil/v4/cpu"
 	memory "github.com/shirou/gopsutil/v4/mem"
+
+	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 type MetricsAgent struct {

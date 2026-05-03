@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
-	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 func TestNewAgentMetrics(t *testing.T) {

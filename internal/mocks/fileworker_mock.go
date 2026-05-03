@@ -7,8 +7,9 @@ package mocks
 import (
 	reflect "reflect"
 
-	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	gomock "github.com/golang/mock/gomock"
+
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 // MockFileWorker is a mock of FileWorker interface.

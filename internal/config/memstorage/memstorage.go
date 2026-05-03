@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/Nakohartum/practicum-metrics/internal/model"
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 type MemStorage struct {
