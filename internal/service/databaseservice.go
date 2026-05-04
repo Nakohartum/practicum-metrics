@@ -37,6 +37,12 @@ func (s *DatabaseService) GetData(metricType, metricKey string) (models.Metrics,
 
 // SetData stores a metric value in database storage.
 func (s *DatabaseService) SetData(metricType, metricKey, metricValue string) error {
+	return retryRetriablePostgresError(func() error {
+		return s.setData(metricType, metricKey, metricValue)
+	})
+}
+
+func (s *DatabaseService) setData(metricType, metricKey, metricValue string) error {
 	var metric models.Metrics
 	metric.MType = metricType
 	metric.ID = metricKey
@@ -57,6 +63,32 @@ func (s *DatabaseService) SetData(metricType, metricKey, metricValue string) err
 		return ErrMetricTypeNotSupported
 	}
 	return s.repo.SetData(metric)
+}
+
+func retryRetriablePostgresError(operation func() error) error {
+	err := operation()
+	if err == nil {
+		return nil
+	}
+
+	validator := postgresErrorClassifier{}
+	if validator.classify(err) != retriable {
+		return err
+	}
+
+	cooldown := 1 * time.Second
+	for i := 0; i < 3; i++ {
+		time.Sleep(cooldown)
+		err = operation()
+		if err == nil {
+			return nil
+		}
+		if validator.classify(err) != retriable {
+			return err
+		}
+		cooldown += 2 * time.Second
+	}
+	return err
 }
 
 // GetAll returns all metrics from database storage.
@@ -107,39 +139,61 @@ func (s *DatabaseService) SaveAllData() error {
 
 // SetDataUsingMetrics stores a batch of metric models.
 func (s *DatabaseService) SetDataUsingMetrics(metrics []models.Metrics) error {
-	var firstErr error
+	normalized, err := normalizeMetricBatch(metrics)
+	if err != nil {
+		return err
+	}
+
+	return retryRetriablePostgresError(func() error {
+		return s.repo.SetAllData(normalized)
+	})
+}
+
+func normalizeMetricBatch(metrics []models.Metrics) ([]models.Metrics, error) {
+	result := make([]models.Metrics, 0, len(metrics))
+	counterIndex := make(map[string]int)
+	gaugeIndex := make(map[string]int)
+
 	for _, metric := range metrics {
+		if metric.ID == "" {
+			return nil, ErrMetricNameRequired
+		}
 		switch metric.MType {
 		case models.Counter:
 			if metric.Delta == nil {
-				if firstErr == nil {
-					firstErr = ErrCounterDeltaRequired
-				}
+				return nil, ErrCounterDeltaRequired
+			}
+			if idx, ok := counterIndex[metric.ID]; ok {
+				delta := *result[idx].Delta + *metric.Delta
+				result[idx].Delta = &delta
 				continue
 			}
-			if err := s.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10)); err != nil {
-				if firstErr == nil {
-					firstErr = err
-				}
-			}
+			delta := *metric.Delta
+			counterIndex[metric.ID] = len(result)
+			result = append(result, models.Metrics{
+				ID:    metric.ID,
+				MType: metric.MType,
+				Delta: &delta,
+			})
 		case models.Gauge:
 			if metric.Value == nil {
-				if firstErr == nil {
-					firstErr = ErrGaugeValueRequired
-				}
+				return nil, ErrGaugeValueRequired
+			}
+			value := *metric.Value
+			if idx, ok := gaugeIndex[metric.ID]; ok {
+				result[idx].Value = &value
 				continue
 			}
-			if err := s.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64)); err != nil {
-				if firstErr == nil {
-					firstErr = err
-				}
-			}
+			gaugeIndex[metric.ID] = len(result)
+			result = append(result, models.Metrics{
+				ID:    metric.ID,
+				MType: metric.MType,
+				Value: &value,
+			})
 		default:
-			if firstErr == nil {
-				firstErr = ErrMetricTypeNotSupported
-			}
-			continue
+			return nil, ErrMetricTypeNotSupported
 		}
 	}
-	return firstErr
+
+	return result, nil
 }

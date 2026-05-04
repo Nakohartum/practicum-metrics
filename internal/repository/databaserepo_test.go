@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -22,15 +23,14 @@ func TestDatabaseRepositorySetAllData(t *testing.T) {
 			name:    "sets all metrics",
 			metrics: []models.Metrics{{ID: "a"}, {ID: "b"}},
 			mock: func(adapter *mocks.MockDatabaseAdapter) {
-				adapter.EXPECT().SetData(models.Metrics{ID: "a"}).Return(nil)
-				adapter.EXPECT().SetData(models.Metrics{ID: "b"}).Return(nil)
+				adapter.EXPECT().SetMultipleDataViaTransaction(context.Background(), []models.Metrics{{ID: "a"}, {ID: "b"}}).Return(nil)
 			},
 		},
 		{
-			name:    "returns on first error",
+			name:    "returns batch error",
 			metrics: []models.Metrics{{ID: "bad"}, {ID: "ok"}},
 			mock: func(adapter *mocks.MockDatabaseAdapter) {
-				adapter.EXPECT().SetData(models.Metrics{ID: "bad"}).Return(assert.AnError)
+				adapter.EXPECT().SetMultipleDataViaTransaction(context.Background(), []models.Metrics{{ID: "bad"}, {ID: "ok"}}).Return(assert.AnError)
 			},
 			wantErr: assert.AnError,
 		},

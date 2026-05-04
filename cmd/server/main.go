@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/Nakohartum/practicum-metrics/internal/audit"
-	dbConfig "github.com/Nakohartum/practicum-metrics/internal/config/db"
 	fConfig "github.com/Nakohartum/practicum-metrics/internal/config/filestorage"
 	mConfig "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
 	"github.com/Nakohartum/practicum-metrics/internal/handler"
@@ -42,9 +41,10 @@ func main() {
 
 	server := setupServer(service, auditor, appCtx)
 	go func() {
-		log.Println("Server started")
+		slog.Info("server started", "addr", configData.Address.String())
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Could not listen on %s: %v\n", configData.Address.String(), err)
+			slog.Error("could not listen", "addr", configData.Address.String(), "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -57,14 +57,15 @@ func main() {
 	err := service.SaveDataAfterExit(shutdownCtx)
 
 	if err != nil {
-		log.Println(err)
+		slog.Error("failed to save data after exit", "error", err)
 	}
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		slog.Error("server forced to shutdown", "error", err)
+		os.Exit(1)
 	}
 
-	log.Println("Server shut down")
+	slog.Info("server shut down")
 }
 
 func setupMemRepo() *repository.MemRepo {
@@ -80,12 +81,13 @@ func setupMemService(repo *repository.MemRepo) *service.MetricsService {
 }
 
 func setupDatabaseService(memRepo *repository.MemRepo) *service.DatabaseService {
-	dbAdapter := dbConfig.NewPgDatabaseAdapter(configData.DatabaseAddress.connectionString)
+	dbAdapter := repository.NewPgDatabaseAdapter(configData.DatabaseAddress.connectionString)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := dbAdapter.Open(ctx)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("failed to open database", "error", err)
+		os.Exit(1)
 	}
 	repo := repository.NewDatabaseRepository(dbAdapter)
 	dbService := service.NewDatabaseService(repo, memRepo, int(configData.FileWork.storeInterval))
@@ -95,12 +97,14 @@ func setupDatabaseService(memRepo *repository.MemRepo) *service.DatabaseService 
 func setupFileService(memRepo *repository.MemRepo) *service.FileService {
 	fWriter, err := fConfig.NewFileWriter(configData.FileWork.fileStoragePath)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("failed to create file writer", "path", configData.FileWork.fileStoragePath, "error", err)
+		os.Exit(1)
 		return nil
 	}
 	fReader, err := fConfig.NewFileReader(configData.FileWork.fileStoragePath)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("failed to create file reader", "path", configData.FileWork.fileStoragePath, "error", err)
+		os.Exit(1)
 		return nil
 	}
 	fWorker := fConfig.NewFileManager(fReader, fWriter)
@@ -131,7 +135,7 @@ func setupServer(service service.Service, auditor *audit.Auditor, appCtx context
 
 		res := service.GetAll()
 		if len(res) == 0 {
-			log.Printf("no data")
+			slog.Info("no data to restore")
 		}
 		for _, metric := range res {
 			switch metric.MType {

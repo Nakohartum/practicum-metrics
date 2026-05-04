@@ -11,15 +11,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang/mock/gomock"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nakohartum/practicum-metrics/internal/audit"
-	config "github.com/Nakohartum/practicum-metrics/internal/config/db"
 	"github.com/Nakohartum/practicum-metrics/internal/mocks"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
+	"github.com/Nakohartum/practicum-metrics/internal/service"
 )
 
 func ptrInt64(v int64) *int64 {
@@ -150,24 +148,6 @@ func TestNewMetricsHandler(t *testing.T) {
 	}
 }
 
-func TestMetricsHandlerCheckError(t *testing.T) {
-	tests := []struct {
-		name    string
-		err     error
-		wantCls config.PGErrorClassification
-	}{
-		{name: "nil is non retriable", err: nil, wantCls: config.NonRetriable},
-		{name: "connection failure is retriable", err: &pgconn.PgError{Code: pgerrcode.ConnectionFailure}, wantCls: config.Retriable},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := &MetricsHandler{}
-			assert.Equal(t, tt.wantCls, handler.checkError(tt.err))
-		})
-	}
-}
-
 func TestMetricsHandlerUpdateMetricsDataHandle(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -191,25 +171,34 @@ func TestMetricsHandlerUpdateMetricsDataHandle(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "returns bad request for missing delta in strict mode",
-			body:       `{"id":"hits","type":"counter"}`,
+			name: "returns bad request for missing delta in strict mode",
+			body: `{"id":"hits","type":"counter"}`,
+			mock: func(svc *mocks.MockService) {
+				svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+					{ID: "hits", MType: models.Counter},
+				}).Return(service.ErrCounterDeltaRequired)
+			},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name: "saves valid metric",
 			body: `{"id":"hits","type":"counter","delta":3}`,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetData(models.Counter, "hits", "3").Return(nil)
+				svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+					{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
+				}).Return(nil)
 			},
 			wantStatus: http.StatusOK,
 		},
 		{
-			name: "returns internal error for service failure",
+			name: "returns bad request for service failure",
 			body: `{"id":"hits","type":"counter","delta":3}`,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetData(models.Counter, "hits", "3").Return(assert.AnError)
+				svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+					{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
+				}).Return(assert.AnError)
 			},
-			wantStatus: http.StatusInternalServerError,
+			wantStatus: http.StatusBadRequest,
 		},
 	}
 
@@ -239,7 +228,9 @@ func TestMetricsHandlerUpdateMetricsDataHandleNotifiesAudit(t *testing.T) {
 	defer ctrl.Finish()
 
 	svc := mocks.NewMockService(ctrl)
-	svc.EXPECT().SetData(models.Counter, "hits", "3").Return(nil)
+	svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+		{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
+	}).Return(nil)
 
 	observer := &recordingAuditObserver{}
 	handler := NewMetricsHandler(svc, audit.NewAuditor(observer))
@@ -637,17 +628,23 @@ func TestMetricsHandlerSetMetricsDataHandle(t *testing.T) {
 			method: http.MethodPost,
 			body:   `{"id":"hits","type":"counter","delta":3}`,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetData(models.Counter, "hits", "3").Return(nil)
+				svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+					{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
+				}).Return(nil)
 			},
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:   "aggregates batch metrics",
+			name:   "delegates batch metrics to service",
 			method: http.MethodPost,
 			body:   `[{"id":"hits","type":"counter","delta":2},{"id":"hits","type":"counter","delta":3},{"id":"load","type":"gauge","value":1.5},{"id":"load","type":"gauge","value":2.5}]`,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetData(models.Counter, "hits", "5").Return(nil)
-				svc.EXPECT().SetData(models.Gauge, "load", "2.5").Return(nil)
+				svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+					{ID: "hits", MType: models.Counter, Delta: ptrInt64(2)},
+					{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
+					{ID: "load", MType: models.Gauge, Value: ptrFloat64(1.5)},
+					{ID: "load", MType: models.Gauge, Value: ptrFloat64(2.5)},
+				}).Return(nil)
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -674,13 +671,15 @@ func TestMetricsHandlerSetMetricsDataHandle(t *testing.T) {
 	}
 }
 
-func TestMetricsHandlerSetMetricsDataHandleNotifiesOnlySavedMetrics(t *testing.T) {
+func TestMetricsHandlerSetMetricsDataHandleNotifiesSubmittedMetrics(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	svc := mocks.NewMockService(ctrl)
-	svc.EXPECT().SetData(models.Counter, "hits", "3").Return(nil)
-	svc.EXPECT().SetData(models.Gauge, "load", "1.5").Return(assert.AnError)
+	svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+		{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
+		{ID: "load", MType: models.Gauge, Value: ptrFloat64(1.5)},
+	}).Return(nil)
 
 	observer := &recordingAuditObserver{}
 	handler := NewMetricsHandler(svc, audit.NewAuditor(observer))
@@ -691,175 +690,7 @@ func TestMetricsHandlerSetMetricsDataHandleNotifiesOnlySavedMetrics(t *testing.T
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Len(t, observer.events, 1)
-	assert.Equal(t, []string{"hits"}, observer.events[0].Metrics)
-}
-
-func TestMetricsHandlerSetDataWithRetry(t *testing.T) {
-	tests := []struct {
-		name    string
-		mock    func(*mocks.MockService)
-		wantErr bool
-	}{
-		{
-			name: "returns nil on first try",
-			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetData(models.Counter, "hits", "1").Return(nil)
-			},
-		},
-		{
-			name: "retries retriable error and succeeds",
-			mock: func(svc *mocks.MockService) {
-				gomock.InOrder(
-					svc.EXPECT().SetData(models.Counter, "hits", "1").Return(&pgconn.PgError{Code: pgerrcode.ConnectionFailure}),
-					svc.EXPECT().SetData(models.Counter, "hits", "1").Return(nil),
-				)
-			},
-		},
-		{
-			name: "returns non retriable error without retry",
-			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetData(models.Counter, "hits", "1").Return(assert.AnError)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			svc := mocks.NewMockService(ctrl)
-			tt.mock(svc)
-
-			handler := NewMetricsHandler(svc)
-			err := handler.setDataWithRetry(models.Counter, "hits", "1")
-
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
-}
-
-func TestMetricsHandlerSaveMetric(t *testing.T) {
-	tests := []struct {
-		name    string
-		metric  models.Metrics
-		strict  bool
-		mock    func(*mocks.MockService)
-		wantErr bool
-	}{
-		{
-			name:   "saves counter metric",
-			metric: models.Metrics{ID: "hits", MType: models.Counter, Delta: ptrInt64(5)},
-			strict: true,
-			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetData(models.Counter, "hits", "5").Return(nil)
-			},
-		},
-		{
-			name:    "strict validation returns error",
-			metric:  models.Metrics{ID: "hits", MType: models.Counter},
-			strict:  true,
-			wantErr: true,
-		},
-		{
-			name:   "non strict skips invalid metric",
-			metric: models.Metrics{ID: "hits", MType: "unknown"},
-			strict: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			svc := mocks.NewMockService(ctrl)
-			if tt.mock != nil {
-				tt.mock(svc)
-			}
-
-			handler := NewMetricsHandler(svc)
-			err := handler.saveMetric(tt.metric, tt.strict)
-
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
-}
-
-func TestGetMetricValue(t *testing.T) {
-	tests := []struct {
-		name      string
-		metric    models.Metrics
-		strict    bool
-		wantValue string
-		wantSkip  bool
-		wantErr   bool
-	}{
-		{
-			name:      "returns counter value",
-			metric:    models.Metrics{MType: models.Counter, Delta: ptrInt64(5)},
-			strict:    true,
-			wantValue: "5",
-		},
-		{
-			name:      "returns gauge value",
-			metric:    models.Metrics{MType: models.Gauge, Value: ptrFloat64(1.5)},
-			strict:    true,
-			wantValue: "1.5",
-		},
-		{
-			name:    "strict counter without delta returns error",
-			metric:  models.Metrics{MType: models.Counter},
-			strict:  true,
-			wantErr: true,
-		},
-		{
-			name:     "non strict unsupported metric is skipped",
-			metric:   models.Metrics{MType: "other"},
-			strict:   false,
-			wantSkip: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			value, skip, err := getMetricValue(tt.metric, tt.strict)
-
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantValue, value)
-			assert.Equal(t, tt.wantSkip, skip)
-		})
-	}
-}
-
-func TestMetricValidationError(t *testing.T) {
-	tests := []struct {
-		name    string
-		message string
-	}{
-		{name: "returns message", message: "bad metric"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := metricValidationError{message: tt.message}
-			assert.Equal(t, tt.message, err.Error())
-		})
-	}
+	assert.Equal(t, []string{"hits", "load"}, observer.events[0].Metrics)
 }
 
 func TestMetricsHandlerGetMetricsByNameHandleResponseJSON(t *testing.T) {

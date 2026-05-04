@@ -1,16 +1,16 @@
-package config
+package repository
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
+	"database/sql"
 	"sync"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
+	"github.com/pressly/goose/v3"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
@@ -23,6 +23,8 @@ type PgDatabaseAdapter struct {
 }
 
 const dbOperationTimeout = 5 * time.Second
+
+var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 // NewPgDatabaseAdapter creates a PostgreSQL adapter for the connection string.
 func NewPgDatabaseAdapter(connectionString string) *PgDatabaseAdapter {
@@ -46,33 +48,17 @@ func (dbAdapter *PgDatabaseAdapter) Open(ctx context.Context) error {
 }
 
 func (dbAdapter *PgDatabaseAdapter) runMigrations(ctx context.Context, dir string) error {
-	entries, err := os.ReadDir(dir)
+	db, err := sql.Open("pgx", dbAdapter.connectionString)
 	if err != nil {
 		return err
 	}
+	defer db.Close()
 
-	files := make([]string, 0)
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		name := e.Name()
-		if strings.HasSuffix(name, ".up.sql") {
-			files = append(files, filepath.Join(dir, name))
-		}
+	if err := goose.SetDialect("postgres"); err != nil {
+		return err
 	}
-	sort.Strings(files)
 
-	for _, f := range files {
-		sqlBytes, err := os.ReadFile(f)
-		if err != nil {
-			return fmt.Errorf("read migration %s: %w", f, err)
-		}
-		if _, err := dbAdapter.db.Exec(ctx, string(sqlBytes)); err != nil {
-			return fmt.Errorf("apply migration %s: %w", f, err)
-		}
-	}
-	return nil
+	return goose.UpContext(ctx, db, dir)
 }
 
 // Close closes the PostgreSQL connection.
@@ -103,33 +89,62 @@ func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbOperationTimeout)
 	defer cancel()
 
-	var count int64
-	row := dbAdapter.db.QueryRow(ctx, "SELECT COUNT(*) FROM metric where id = $1 and metric_type = $2", model.ID, model.MType)
-	err := row.Scan(&count)
+	switch model.MType {
+	case models.Counter:
+		return dbAdapter.upsertMetric(ctx, model, counterConflictSuffix)
+	case models.Gauge:
+		return dbAdapter.upsertMetric(ctx, model, gaugeConflictSuffix)
+	default:
+		return errMetricTypeNotSupported
+	}
+}
+
+const (
+	counterConflictSuffix = `ON CONFLICT (id, metric_type) DO UPDATE
+SET delta = COALESCE(metric.delta, 0) + COALESCE(EXCLUDED.delta, 0),
+	value = NULL,
+	updated_at = now()`
+	gaugeConflictSuffix = `ON CONFLICT (id, metric_type) DO UPDATE
+SET delta = NULL,
+	value = EXCLUDED.value,
+	updated_at = now()`
+	batchConflictSuffix = `ON CONFLICT (id, metric_type) DO UPDATE
+SET delta = CASE
+		WHEN EXCLUDED.metric_type = 'counter' THEN COALESCE(metric.delta, 0) + COALESCE(EXCLUDED.delta, 0)
+		ELSE NULL
+	END,
+	value = CASE
+		WHEN EXCLUDED.metric_type = 'gauge' THEN EXCLUDED.value
+		ELSE NULL
+	END,
+	updated_at = now()`
+)
+
+func (dbAdapter *PgDatabaseAdapter) upsertMetric(ctx context.Context, model models.Metrics, conflictSuffix string) error {
+	delta, value := metricValues(model)
+	query, args, err := psql.
+		Insert("metric").
+		Columns("id", "metric_type", "delta", "value", "updated_at").
+		Values(model.ID, model.MType, delta, value, sq.Expr("now()")).
+		Suffix(conflictSuffix).
+		ToSql()
 	if err != nil {
 		return err
 	}
-	if count == 0 {
-		_, err = dbAdapter.db.Exec(ctx, "INSERT INTO metric(id, metric_type, delta, value) VALUES($1, $2, $3, $4)", model.ID, model.MType, model.Delta, model.Value)
-	} else {
-		switch model.MType {
-		case models.Counter:
-			_, err = dbAdapter.db.Exec(
-				ctx,
-				"UPDATE metric SET delta = COALESCE(delta, 0) + $1 WHERE id = $2 AND metric_type = $3",
-				model.Delta, model.ID, model.MType,
-			)
-		case models.Gauge:
-			_, err = dbAdapter.db.Exec(
-				ctx,
-				"UPDATE metric SET value = $1 WHERE id = $2 AND metric_type = $3",
-				model.Value, model.ID, model.MType,
-			)
-		default:
-			return errMetricTypeNotSupported
-		}
-	}
+
+	_, err = dbAdapter.db.Exec(ctx, query, args...)
 	return err
+}
+
+func metricValues(model models.Metrics) (*int64, *float64) {
+	switch model.MType {
+	case models.Counter:
+		return model.Delta, nil
+	case models.Gauge:
+		return nil, model.Value
+	default:
+		return nil, nil
+	}
 }
 
 // GetAll returns all metrics from PostgreSQL.
@@ -141,7 +156,7 @@ func (dbAdapter *PgDatabaseAdapter) GetAll() []models.Metrics {
 	defer cancel()
 
 	results := make([]models.Metrics, 0)
-	rows, err := dbAdapter.db.Query(ctx, "select * from metric")
+	rows, err := dbAdapter.db.Query(ctx, "SELECT id, metric_type, delta, value FROM metric")
 	if err != nil {
 		return results
 	}
@@ -166,33 +181,38 @@ func (dbAdapter *PgDatabaseAdapter) GetData(metricType string, metricKey string)
 
 	var res models.Metrics
 
-	row := dbAdapter.db.QueryRow(ctx, "select * from metric where id = $1 and metric_type = $2", metricKey, metricType)
+	row := dbAdapter.db.QueryRow(ctx, "SELECT id, metric_type, delta, value FROM metric WHERE id = $1 AND metric_type = $2", metricKey, metricType)
 
 	err := row.Scan(&res.ID, &res.MType, &res.Delta, &res.Value)
 
 	return res, err
 }
 
-// SetMultipleDataViaTransaction inserts metrics in one PostgreSQL transaction.
+// SetMultipleDataViaTransaction inserts or updates metrics with one PostgreSQL query.
 func (dbAdapter *PgDatabaseAdapter) SetMultipleDataViaTransaction(ctx context.Context, metrics []models.Metrics) error {
 	dbAdapter.mu.Lock()
 	defer dbAdapter.mu.Unlock()
 
-	transaction, err := dbAdapter.db.BeginTx(ctx, pgx.TxOptions{})
+	if len(metrics) == 0 {
+		return nil
+	}
 
-	if err != nil {
-		return err
-	}
-	defer transaction.Rollback(ctx)
-	query, err := transaction.Prepare(ctx, "add query", "insert into metric(id, metric_type, delta, value) values($1, $2, $3, $4)")
-	if err != nil {
-		return err
-	}
+	builder := psql.Insert("metric").Columns("id", "metric_type", "delta", "value", "updated_at")
 	for _, v := range metrics {
-		_, err = transaction.Exec(ctx, query.SQL, v.ID, v.MType, v.Delta, v.Value)
-		if err != nil {
-			return err
+		switch v.MType {
+		case models.Counter, models.Gauge:
+		default:
+			return errMetricTypeNotSupported
 		}
+		delta, value := metricValues(v)
+		builder = builder.Values(v.ID, v.MType, delta, value, sq.Expr("now()"))
 	}
-	return nil
+
+	query, args, err := builder.Suffix(batchConflictSuffix).ToSql()
+	if err != nil {
+		return err
+	}
+
+	_, err = dbAdapter.db.Exec(ctx, query, args...)
+	return err
 }

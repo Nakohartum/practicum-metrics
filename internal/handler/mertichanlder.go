@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"html/template"
 	"net"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/Nakohartum/practicum-metrics/internal/audit"
-	config "github.com/Nakohartum/practicum-metrics/internal/config/db"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
@@ -41,18 +39,20 @@ func decodeJSONBody[T any](r *http.Request, dst *T) error {
 	return json.NewDecoder(r.Body).Decode(dst)
 }
 
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+func writeJSONError(w http.ResponseWriter, message string, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(errorResponse{Error: message})
+}
+
 // MetricsHandler exposes HTTP handlers for metric operations.
 type MetricsHandler struct {
 	service service.Service
 	auditor *audit.Auditor
-}
-
-type metricValidationError struct {
-	message string
-}
-
-func (e metricValidationError) Error() string {
-	return e.message
 }
 
 // NewMetricsHandler creates a MetricsHandler with an optional auditor.
@@ -68,34 +68,24 @@ func NewMetricsHandler(s service.Service, auditors ...*audit.Auditor) *MetricsHa
 	}
 }
 
-func (mh *MetricsHandler) checkError(err error) config.PGErrorClassification {
-	validator := config.NewPostgresErrorClassifier()
-	return validator.Classify(err)
-}
-
 // UpdateMetricsDataHandle returns a handler for updating one JSON metric.
 func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		var metric models.Metrics
 		if err := decodeJSONBody(r, &metric); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			writeJSONError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		if metric.ID == "" {
-			http.Error(w, "no metric's name", http.StatusBadRequest)
+			writeJSONError(w, "no metric's name", http.StatusBadRequest)
 			return
 		}
 		if metric.MType == "" {
-			http.Error(w, "no metric's type", http.StatusBadRequest)
+			writeJSONError(w, "no metric's type", http.StatusBadRequest)
 			return
 		}
-		if err := mh.saveMetric(metric, true); err != nil {
-			var validationErr metricValidationError
-			if errors.As(err, &validationErr) {
-				http.Error(w, validationErr.Error(), http.StatusBadRequest)
-				return
-			}
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := mh.service.SetDataUsingMetrics([]models.Metrics{metric}); err != nil {
+			writeJSONError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -110,22 +100,22 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 	fun := func(w http.ResponseWriter, r *http.Request) {
 		var metricToSearch models.Metrics
 		if err := decodeJSONBody(r, &metricToSearch); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			writeJSONError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		if metricToSearch.ID == "" || metricToSearch.MType == "" {
-			http.Error(w, "metric's name and type are required", http.StatusBadRequest)
+			writeJSONError(w, "metric's name and type are required", http.StatusBadRequest)
 			return
 		}
 		metricData, err := mh.service.GetData(metricToSearch.MType, metricToSearch.ID)
 		if err != nil {
-			http.Error(w, "no metric found", http.StatusNotFound)
+			writeJSONError(w, "no metric found", http.StatusNotFound)
 			return
 		}
 
 		responseData, err := json.Marshal(metricData)
 		if err != nil {
-			http.Error(w, "error marshaling response data", http.StatusInternalServerError)
+			writeJSONError(w, "error marshaling response data", http.StatusInternalServerError)
 			return
 		}
 
@@ -152,7 +142,7 @@ func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 			return
 		}
 
-		if err := mh.setDataWithRetry(metricType, metricName, metricValue); err != nil {
+		if err := mh.service.SetData(metricType, metricName, metricValue); err != nil {
 			http.Error(w, "error setting metric data", http.StatusBadRequest)
 			return
 		}
@@ -289,47 +279,29 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 
 		metrics, err := decodeMetricsPayload(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			writeJSONError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		counterBatch := make(map[string]int64)
-		gaugeBatch := make(map[string]float64)
+		metricsNames := make([]string, 0, len(metrics))
+		seenMetricNames := make(map[string]struct{})
 
 		for _, metric := range metrics {
 			if metric.ID == "" {
 				continue
 			}
-			switch metric.MType {
-			case models.Counter:
-				if metric.Delta == nil {
-					continue
-				}
-				counterBatch[metric.ID] += *metric.Delta
-			case models.Gauge:
-				if metric.Value == nil {
-					continue
-				}
-				// In one batch, the latest gauge value for the same metric wins.
-				gaugeBatch[metric.ID] = *metric.Value
-			default:
+			if _, ok := seenMetricNames[metric.ID]; ok {
 				continue
 			}
+			seenMetricNames[metric.ID] = struct{}{}
+			metricsNames = append(metricsNames, metric.ID)
 		}
 
-		metricsNames := make([]string, 0, len(counterBatch)+len(gaugeBatch))
-
-		for id, delta := range counterBatch {
-			if err := mh.setDataWithRetry(models.Counter, id, strconv.FormatInt(delta, 10)); err == nil {
-				metricsNames = append(metricsNames, id)
-			}
+		if err := mh.service.SetDataUsingMetrics(metrics); err != nil {
+			writeJSONError(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 
-		for id, value := range gaugeBatch {
-			if err := mh.setDataWithRetry(models.Gauge, id, strconv.FormatFloat(value, 'f', -1, 64)); err == nil {
-				metricsNames = append(metricsNames, id)
-			}
-		}
 		w.WriteHeader(http.StatusOK)
 		mh.notifyAudit(r, metricsNames)
 	}
@@ -375,66 +347,6 @@ func firstNonSpaceByte(r *bufio.Reader) (byte, error) {
 		default:
 			return b, nil
 		}
-	}
-}
-
-func (mh *MetricsHandler) setDataWithRetry(metricType, metricName, metricValue string) error {
-	err := mh.service.SetData(metricType, metricName, metricValue)
-	if err == nil {
-		return nil
-	}
-	if mh.checkError(err) != config.Retriable {
-		return err
-	}
-
-	retries := 3
-	cooldown := 1 * time.Second
-	for i := 0; i < retries; i++ {
-		err = mh.service.SetData(metricType, metricName, metricValue)
-		if err == nil {
-			return nil
-		}
-		time.Sleep(cooldown)
-		cooldown += 2
-	}
-	return err
-}
-
-func (mh *MetricsHandler) saveMetric(metric models.Metrics, strict bool) error {
-	value, skip, err := getMetricValue(metric, strict)
-	if err != nil {
-		return err
-	}
-	if skip {
-		return nil
-	}
-
-	return mh.service.SetData(metric.MType, metric.ID, value)
-}
-
-func getMetricValue(metric models.Metrics, strict bool) (string, bool, error) {
-	switch metric.MType {
-	case models.Counter:
-		if metric.Delta == nil {
-			if strict {
-				return "", false, metricValidationError{message: "delta value is required for counter type"}
-			}
-			return "", true, nil
-		}
-		return strconv.FormatInt(*metric.Delta, 10), false, nil
-	case models.Gauge:
-		if metric.Value == nil {
-			if strict {
-				return "", false, metricValidationError{message: "value is required for gauge type"}
-			}
-			return "", true, nil
-		}
-		return strconv.FormatFloat(*metric.Value, 'f', -1, 64), false, nil
-	default:
-		if strict {
-			return "", false, metricValidationError{message: "unsupported metric type"}
-		}
-		return "", true, nil
 	}
 }
 

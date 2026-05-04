@@ -1,8 +1,7 @@
-package config
+package repository
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,37 +46,6 @@ func TestClose(t *testing.T) {
 			err := tt.adapter.Close(context.Background())
 			require.Error(t, err)
 			assert.ErrorIs(t, err, tt.wantErr)
-		})
-	}
-}
-
-func TestRunMigrations(t *testing.T) {
-	tests := []struct {
-		name    string
-		dir     string
-		wantErr bool
-	}{
-		{
-			name:    "returns error for missing directory",
-			dir:     filepath.Join(t.TempDir(), "missing"),
-			wantErr: true,
-		},
-		{
-			name:    "empty directory succeeds",
-			dir:     t.TempDir(),
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			adapter := &PgDatabaseAdapter{}
-			err := adapter.runMigrations(context.Background(), tt.dir)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
 		})
 	}
 }
