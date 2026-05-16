@@ -24,12 +24,21 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("application stopped with error", "error", err)
+	}
+}
+
+func run() error {
 	parseFlags()
+
 	memRepo := setupMemRepo()
 	var service service.Service = setupMemService(memRepo)
+
 	appCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	auditor := setupAuditor()
 	defer stop()
+
+	auditor := setupAuditor()
 
 	if configData.FileWork.fileStoragePath != "" {
 		service = setupFileService(memRepo)
@@ -40,32 +49,34 @@ func main() {
 	}
 
 	server := setupServer(service, auditor, appCtx)
+
+	errCh := make(chan error, 1)
 	go func() {
 		slog.Info("server started", "addr", configData.Address.String())
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("could not listen", "addr", configData.Address.String(), "error", err)
-			os.Exit(1)
+			errCh <- err
 		}
 	}()
 
-	<-appCtx.Done()
-	stop()
+	select {
+	case <-appCtx.Done():
+	case err := <-errCh:
+		return err
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := service.SaveDataAfterExit(shutdownCtx)
-
-	if err != nil {
-		slog.Error("failed to save data after exit", "error", err)
+	if err := service.SaveDataAfterExit(shutdownCtx); err != nil {
+		return err
 	}
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		slog.Error("server forced to shutdown", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	slog.Info("server shut down")
+	return nil
 }
 
 func setupMemRepo() *repository.MemRepo {
