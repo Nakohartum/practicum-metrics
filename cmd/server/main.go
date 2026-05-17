@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -23,7 +24,17 @@ import (
 	"github.com/Nakohartum/practicum-metrics/internal/service"
 )
 
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string 
+)
+
+
 func main() {
+	fmt.Printf("Build version: %s\n", buildValue(buildVersion))
+	fmt.Printf("Build date: %s\n", buildValue(buildDate))
+	fmt.Printf("Build commit: %s\n", buildValue(buildCommit))
 	if err := run(); err != nil {
 		slog.Error("application stopped with error", "error", err)
 	}
@@ -192,4 +203,12 @@ func setupAuditor() *audit.Auditor {
 	}
 
 	return audit.NewAuditor(observers...)
+}
+
+
+func buildValue(v string) string {
+	if v == "" {
+		return "N/A"
+	}
+	return v
 }
