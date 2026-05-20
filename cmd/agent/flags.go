@@ -81,9 +81,7 @@ func parseFlags() {
 	}
 	if v, ok := os.LookupEnv("SECRET_KEY"); ok {
 		configData.secretKey = v
-	} else if v, ok := os.LookupEnv("KEY"); ok {
-		configData.secretKey = v
-	}
+	} 
 	if v, ok := os.LookupEnv("RATE_LIMIT"); ok {
 		if intVal, err := strconv.ParseInt(v, 10, 64); err == nil {
 			configData.rateLimit = intVal
