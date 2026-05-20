@@ -156,7 +156,7 @@ func TestSaveAfterPostMiddleware(t *testing.T) {
 			defer ctrl.Finish()
 
 			svc := mocks.NewMockService(ctrl)
-			svc.EXPECT().SaveAllData().Return(nil).Times(tt.saveCalls)
+			svc.EXPECT().SaveAllData(gomock.Any()).Return(nil).Times(tt.saveCalls)
 
 			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.status)

@@ -37,32 +37,32 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 }
 
 // GetAll mocks base method.
-func (m *MockService) GetAll() []models.Metrics {
+func (m *MockService) GetAll(arg0 context.Context) []models.Metrics {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAll")
+	ret := m.ctrl.Call(m, "GetAll", arg0)
 	ret0, _ := ret[0].([]models.Metrics)
 	return ret0
 }
 
 // GetAll indicates an expected call of GetAll.
-func (mr *MockServiceMockRecorder) GetAll() *gomock.Call {
+func (mr *MockServiceMockRecorder) GetAll(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockService)(nil).GetAll))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockService)(nil).GetAll), arg0)
 }
 
 // GetData mocks base method.
-func (m *MockService) GetData(arg0, arg1 string) (models.Metrics, error) {
+func (m *MockService) GetData(arg0 context.Context, arg1, arg2 string) (models.Metrics, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetData", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetData", arg0, arg1, arg2)
 	ret0, _ := ret[0].(models.Metrics)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetData indicates an expected call of GetData.
-func (mr *MockServiceMockRecorder) GetData(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetData(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetData", reflect.TypeOf((*MockService)(nil).GetData), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetData", reflect.TypeOf((*MockService)(nil).GetData), arg0, arg1, arg2)
 }
 
 // Ping mocks base method.
@@ -92,17 +92,17 @@ func (mr *MockServiceMockRecorder) RunSaving(arg0 interface{}) *gomock.Call {
 }
 
 // SaveAllData mocks base method.
-func (m *MockService) SaveAllData() error {
+func (m *MockService) SaveAllData(arg0 context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SaveAllData")
+	ret := m.ctrl.Call(m, "SaveAllData", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SaveAllData indicates an expected call of SaveAllData.
-func (mr *MockServiceMockRecorder) SaveAllData() *gomock.Call {
+func (mr *MockServiceMockRecorder) SaveAllData(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveAllData", reflect.TypeOf((*MockService)(nil).SaveAllData))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveAllData", reflect.TypeOf((*MockService)(nil).SaveAllData), arg0)
 }
 
 // SaveDataAfterExit mocks base method.
@@ -120,29 +120,29 @@ func (mr *MockServiceMockRecorder) SaveDataAfterExit(arg0 interface{}) *gomock.C
 }
 
 // SetData mocks base method.
-func (m *MockService) SetData(arg0, arg1, arg2 string) error {
+func (m *MockService) SetData(arg0 context.Context, arg1, arg2, arg3 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetData", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "SetData", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetData indicates an expected call of SetData.
-func (mr *MockServiceMockRecorder) SetData(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockServiceMockRecorder) SetData(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetData", reflect.TypeOf((*MockService)(nil).SetData), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetData", reflect.TypeOf((*MockService)(nil).SetData), arg0, arg1, arg2, arg3)
 }
 
 // SetDataUsingMetrics mocks base method.
-func (m *MockService) SetDataUsingMetrics(arg0 []models.Metrics) error {
+func (m *MockService) SetDataUsingMetrics(arg0 context.Context, arg1 []models.Metrics) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetDataUsingMetrics", arg0)
+	ret := m.ctrl.Call(m, "SetDataUsingMetrics", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetDataUsingMetrics indicates an expected call of SetDataUsingMetrics.
-func (mr *MockServiceMockRecorder) SetDataUsingMetrics(arg0 interface{}) *gomock.Call {
+func (mr *MockServiceMockRecorder) SetDataUsingMetrics(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDataUsingMetrics", reflect.TypeOf((*MockService)(nil).SetDataUsingMetrics), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDataUsingMetrics", reflect.TypeOf((*MockService)(nil).SetDataUsingMetrics), arg0, arg1)
 }

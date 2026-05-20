@@ -3,11 +3,10 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"sync"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pressly/goose/v3"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -18,8 +17,7 @@ import (
 // PgDatabaseAdapter stores metrics in PostgreSQL using pgx.
 type PgDatabaseAdapter struct {
 	connectionString string
-	db               *pgx.Conn
-	mu               sync.Mutex
+	pool             *pgxpool.Pool
 }
 
 const dbOperationTimeout = 5 * time.Second
@@ -35,13 +33,14 @@ func NewPgDatabaseAdapter(connectionString string) *PgDatabaseAdapter {
 
 // Open connects to PostgreSQL and applies migrations.
 func (dbAdapter *PgDatabaseAdapter) Open(ctx context.Context) error {
-	connection, err := pgx.Connect(ctx, dbAdapter.connectionString)
+	pool, err := pgxpool.New(ctx, dbAdapter.connectionString)
 	if err != nil {
 		return err
 	}
-	dbAdapter.db = connection
+	dbAdapter.pool = pool
 
 	if err := dbAdapter.runMigrations(ctx, "migrations"); err != nil {
+		pool.Close()
 		return err
 	}
 	return nil
@@ -63,30 +62,31 @@ func (dbAdapter *PgDatabaseAdapter) runMigrations(ctx context.Context, dir strin
 
 // Close closes the PostgreSQL connection.
 func (dbAdapter *PgDatabaseAdapter) Close(ctx context.Context) error {
-	dbAdapter.mu.Lock()
-	defer dbAdapter.mu.Unlock()
-
-	if dbAdapter.db == nil {
+	if dbAdapter.pool == nil {
 		return errNoConnectionToClose
 	}
-	err := dbAdapter.db.Close(ctx)
-	return err
+	done := make(chan struct{})
+	go func() {
+		dbAdapter.pool.Close()
+		close(done)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-done:
+		return nil
+	}
 }
 
 // CheckConnection pings the PostgreSQL connection.
 func (dbAdapter *PgDatabaseAdapter) CheckConnection(ctx context.Context) error {
-	dbAdapter.mu.Lock()
-	defer dbAdapter.mu.Unlock()
-
-	return dbAdapter.db.Ping(ctx)
+	return dbAdapter.pool.Ping(ctx)
 }
 
 // SetData inserts or updates one metric in PostgreSQL.
-func (dbAdapter *PgDatabaseAdapter) SetData(model models.Metrics) error {
-	dbAdapter.mu.Lock()
-	defer dbAdapter.mu.Unlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), dbOperationTimeout)
+func (dbAdapter *PgDatabaseAdapter) SetData(ctx context.Context, model models.Metrics) error {
+	ctx, cancel := context.WithTimeout(ctx, dbOperationTimeout)
 	defer cancel()
 
 	switch model.MType {
@@ -132,7 +132,7 @@ func (dbAdapter *PgDatabaseAdapter) upsertMetric(ctx context.Context, model mode
 		return err
 	}
 
-	_, err = dbAdapter.db.Exec(ctx, query, args...)
+	_, err = dbAdapter.pool.Exec(ctx, query, args...)
 	return err
 }
 
@@ -148,15 +148,12 @@ func metricValues(model models.Metrics) (*int64, *float64) {
 }
 
 // GetAll returns all metrics from PostgreSQL.
-func (dbAdapter *PgDatabaseAdapter) GetAll() []models.Metrics {
-	dbAdapter.mu.Lock()
-	defer dbAdapter.mu.Unlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), dbOperationTimeout)
+func (dbAdapter *PgDatabaseAdapter) GetAll(ctx context.Context) []models.Metrics {
+	ctx, cancel := context.WithTimeout(ctx, dbOperationTimeout)
 	defer cancel()
 
 	results := make([]models.Metrics, 0)
-	rows, err := dbAdapter.db.Query(ctx, "SELECT id, metric_type, delta, value FROM metric")
+	rows, err := dbAdapter.pool.Query(ctx, "SELECT id, metric_type, delta, value FROM metric")
 	if err != nil {
 		return results
 	}
@@ -172,16 +169,13 @@ func (dbAdapter *PgDatabaseAdapter) GetAll() []models.Metrics {
 }
 
 // GetData returns one metric from PostgreSQL by type and name.
-func (dbAdapter *PgDatabaseAdapter) GetData(metricType string, metricKey string) (models.Metrics, error) {
-	dbAdapter.mu.Lock()
-	defer dbAdapter.mu.Unlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), dbOperationTimeout)
+func (dbAdapter *PgDatabaseAdapter) GetData(ctx context.Context, metricType string, metricKey string) (models.Metrics, error) {
+	ctx, cancel := context.WithTimeout(ctx, dbOperationTimeout)
 	defer cancel()
 
 	var res models.Metrics
 
-	row := dbAdapter.db.QueryRow(ctx, "SELECT id, metric_type, delta, value FROM metric WHERE id = $1 AND metric_type = $2", metricKey, metricType)
+	row := dbAdapter.pool.QueryRow(ctx, "SELECT id, metric_type, delta, value FROM metric WHERE id = $1 AND metric_type = $2", metricKey, metricType)
 
 	err := row.Scan(&res.ID, &res.MType, &res.Delta, &res.Value)
 
@@ -190,12 +184,8 @@ func (dbAdapter *PgDatabaseAdapter) GetData(metricType string, metricKey string)
 
 // SetMultipleDataViaTransaction inserts or updates metrics with one PostgreSQL query.
 func (dbAdapter *PgDatabaseAdapter) SetMultipleDataViaTransaction(ctx context.Context, metrics []models.Metrics) error {
-	dbAdapter.mu.Lock()
-	defer dbAdapter.mu.Unlock()
-
-	if len(metrics) == 0 {
-		return nil
-	}
+	ctx, cancel := context.WithTimeout(ctx, dbOperationTimeout)
+	defer cancel()
 
 	builder := psql.Insert("metric").Columns("id", "metric_type", "delta", "value", "updated_at")
 	for _, v := range metrics {
@@ -213,6 +203,6 @@ func (dbAdapter *PgDatabaseAdapter) SetMultipleDataViaTransaction(ctx context.Co
 		return err
 	}
 
-	_, err = dbAdapter.db.Exec(ctx, query, args...)
+	_, err = dbAdapter.pool.Exec(ctx, query, args...)
 	return err
 }

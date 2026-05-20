@@ -13,7 +13,7 @@ type Config struct {
 	Address         Address
 	FileWork        FileWork
 	DatabaseAddress DatabaseAddress
-	secretKey       string `env:"KEY"`
+	secretKey       string `env:"SECRET_KEY"`
 	AuditFile       string `env:"AUDIT_FILE"`
 	AuditUrl        string `env:"AUDIT_URL"`
 }
@@ -106,7 +106,9 @@ func parseFlags() {
 		configData.DatabaseAddress.connectionString = v
 	}
 
-	if v, ok := os.LookupEnv("KEY"); ok && v != "" {
+	if v, ok := os.LookupEnv("SECRET_KEY"); ok && v != "" {
+		configData.secretKey = v
+	} else if v, ok := os.LookupEnv("KEY"); ok && v != "" {
 		configData.secretKey = v
 	}
 

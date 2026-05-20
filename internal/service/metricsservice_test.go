@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -66,7 +67,7 @@ func TestMetricsServiceGetData(t *testing.T) {
 
 			svc := NewMetricsService(repository.NewMemRepo(storage), 1)
 
-			got, err := svc.GetData(tt.metricType, tt.key)
+			got, err := svc.GetData(context.Background(), tt.metricType, tt.key)
 			if tt.wantErr != nil {
 				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.wantErr)
@@ -117,7 +118,7 @@ func TestMetricsServiceSetDataUsingMetrics(t *testing.T) {
 			}
 
 			svc := NewMetricsService(repository.NewMemRepo(storage), 1)
-			err := svc.SetDataUsingMetrics(tt.metrics)
+			err := svc.SetDataUsingMetrics(context.Background(), tt.metrics)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)

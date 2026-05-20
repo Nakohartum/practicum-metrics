@@ -24,7 +24,10 @@ func NewMetricsService(r *repository.MemRepo, storeInterval int) *MetricsService
 }
 
 // GetData returns one metric by type and name.
-func (s *MetricsService) GetData(metricType, metricKey string) (models.Metrics, error) {
+func (s *MetricsService) GetData(ctx context.Context, metricType, metricKey string) (models.Metrics, error) {
+	if err := ctx.Err(); err != nil {
+		return models.Metrics{}, err
+	}
 	if metricKey == "" {
 		return models.Metrics{}, ErrMetricNameRequired
 	}
@@ -33,12 +36,18 @@ func (s *MetricsService) GetData(metricType, metricKey string) (models.Metrics, 
 }
 
 // SetData stores a metric value by type and name.
-func (s *MetricsService) SetData(metricType, metricKey, metricValue string) error {
+func (s *MetricsService) SetData(ctx context.Context, metricType, metricKey, metricValue string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return s.repo.SetData(metricType, metricKey, metricValue)
 }
 
 // GetAll returns all stored metrics.
-func (s *MetricsService) GetAll() []models.Metrics {
+func (s *MetricsService) GetAll(ctx context.Context) []models.Metrics {
+	if err := ctx.Err(); err != nil {
+		return nil
+	}
 	return s.repo.GetAll()
 }
 
@@ -70,7 +79,10 @@ func (s *MetricsService) RunSaving(ctx context.Context) {
 }
 
 // SaveAllData persists all current metrics.
-func (s *MetricsService) SaveAllData() error {
+func (s *MetricsService) SaveAllData(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -83,7 +95,13 @@ func (s *MetricsService) SaveDataAfterExit(ctx context.Context) error {
 }
 
 // SetDataUsingMetrics stores a batch of metric models.
-func (s *MetricsService) SetDataUsingMetrics(metrics []models.Metrics) error {
+func (s *MetricsService) SetDataUsingMetrics(ctx context.Context, metrics []models.Metrics) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if len(metrics) == 0 {
+		return nil
+	}
 	var firstErr error
 	for _, v := range metrics {
 		var err error

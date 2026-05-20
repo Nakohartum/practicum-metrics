@@ -147,7 +147,7 @@ func SaveAfterPostMiddleware(saver service.Service) func(http.Handler) http.Hand
 				sw := &statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
 				next.ServeHTTP(sw, r)
 				if sw.statusCode < 400 {
-					_ = saver.SaveAllData()
+					_ = saver.SaveAllData(r.Context())
 				}
 				return
 			}

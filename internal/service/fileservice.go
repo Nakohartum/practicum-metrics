@@ -32,7 +32,10 @@ func (fs *FileService) WriteData(data []models.Metrics) error {
 }
 
 // GetData returns one metric from file storage by type and name.
-func (fs *FileService) GetData(metricType, metricKey string) (models.Metrics, error) {
+func (fs *FileService) GetData(ctx context.Context, metricType, metricKey string) (models.Metrics, error) {
+	if err := ctx.Err(); err != nil {
+		return models.Metrics{}, err
+	}
 	values, err := fs.repo.ReadData()
 
 	if err != nil {
@@ -48,7 +51,10 @@ func (fs *FileService) GetData(metricType, metricKey string) (models.Metrics, er
 }
 
 // GetAll returns all metrics from file storage.
-func (fs *FileService) GetAll() []models.Metrics {
+func (fs *FileService) GetAll(ctx context.Context) []models.Metrics {
+	if err := ctx.Err(); err != nil {
+		return nil
+	}
 	values, err := fs.repo.ReadData()
 
 	if err != nil {
@@ -58,7 +64,10 @@ func (fs *FileService) GetAll() []models.Metrics {
 }
 
 // SetData stores a metric in memory and persists it to file storage.
-func (fs *FileService) SetData(metricType, metricKey, metricValue string) error {
+func (fs *FileService) SetData(ctx context.Context, metricType, metricKey, metricValue string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	var model models.Metrics
 	fs.memRepo.SetData(metricType, metricKey, metricValue)
 	model, err := fs.memRepo.GetData(metricType, metricKey)
@@ -115,13 +124,22 @@ func (fs *FileService) SaveDataAfterExit(ctx context.Context) error {
 }
 
 // SaveAllData writes all in-memory metrics to file storage.
-func (fs *FileService) SaveAllData() error {
+func (fs *FileService) SaveAllData(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	values := fs.memRepo.GetAll()
 	return fs.repo.WriteData(values)
 }
 
 // SetDataUsingMetrics stores a batch of metric models.
-func (fs *FileService) SetDataUsingMetrics(metrics []models.Metrics) error {
+func (fs *FileService) SetDataUsingMetrics(ctx context.Context, metrics []models.Metrics) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if len(metrics) == 0 {
+		return nil
+	}
 	var firstErr error
 	for _, metric := range metrics {
 		switch metric.MType {
@@ -132,7 +150,7 @@ func (fs *FileService) SetDataUsingMetrics(metrics []models.Metrics) error {
 				}
 				continue
 			}
-			if err := fs.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10)); err != nil {
+			if err := fs.SetData(ctx, metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10)); err != nil {
 				if firstErr == nil {
 					firstErr = err
 				}
@@ -144,7 +162,7 @@ func (fs *FileService) SetDataUsingMetrics(metrics []models.Metrics) error {
 				}
 				continue
 			}
-			if err := fs.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64)); err != nil {
+			if err := fs.SetData(ctx, metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64)); err != nil {
 				if firstErr == nil {
 					firstErr = err
 				}

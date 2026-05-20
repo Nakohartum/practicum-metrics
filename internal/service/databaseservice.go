@@ -27,22 +27,22 @@ func NewDatabaseService(repo *repository.DatabaseRepository, mr *repository.MemR
 }
 
 // GetData returns one metric from database storage by type and name.
-func (s *DatabaseService) GetData(metricType, metricKey string) (models.Metrics, error) {
+func (s *DatabaseService) GetData(ctx context.Context, metricType, metricKey string) (models.Metrics, error) {
+	if err := ctx.Err(); err != nil {
+		return models.Metrics{}, err
+	}
 	if metricKey == "" {
 		return models.Metrics{}, ErrMetricNameRequired
 	}
-	return s.repo.GetData(metricType, metricKey)
+	return s.repo.GetData(ctx, metricType, metricKey)
 
 }
 
 // SetData stores a metric value in database storage.
-func (s *DatabaseService) SetData(metricType, metricKey, metricValue string) error {
-	return retryRetriablePostgresError(func() error {
-		return s.setData(metricType, metricKey, metricValue)
-	})
-}
-
-func (s *DatabaseService) setData(metricType, metricKey, metricValue string) error {
+func (s *DatabaseService) SetData(ctx context.Context, metricType, metricKey, metricValue string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	var metric models.Metrics
 	metric.MType = metricType
 	metric.ID = metricKey
@@ -62,38 +62,15 @@ func (s *DatabaseService) setData(metricType, metricKey, metricValue string) err
 	default:
 		return ErrMetricTypeNotSupported
 	}
-	return s.repo.SetData(metric)
-}
-
-func retryRetriablePostgresError(operation func() error) error {
-	err := operation()
-	if err == nil {
-		return nil
-	}
-
-	validator := postgresErrorClassifier{}
-	if validator.classify(err) != retriable {
-		return err
-	}
-
-	cooldown := 1 * time.Second
-	for i := 0; i < 3; i++ {
-		time.Sleep(cooldown)
-		err = operation()
-		if err == nil {
-			return nil
-		}
-		if validator.classify(err) != retriable {
-			return err
-		}
-		cooldown += 2 * time.Second
-	}
-	return err
+	return s.repo.SetData(ctx, metric)
 }
 
 // GetAll returns all metrics from database storage.
-func (s *DatabaseService) GetAll() []models.Metrics {
-	return s.repo.GetAll()
+func (s *DatabaseService) GetAll(ctx context.Context) []models.Metrics {
+	if err := ctx.Err(); err != nil {
+		return nil
+	}
+	return s.repo.GetAll(ctx)
 }
 
 // Ping checks that database storage is available.
@@ -115,7 +92,7 @@ func (s *DatabaseService) RunSaving(ctx context.Context) {
 			if len(data) == 0 {
 				continue
 			}
-			err := s.repo.SetAllData(data)
+			err := s.repo.SetAllData(ctx, data)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -128,25 +105,35 @@ func (s *DatabaseService) SaveDataAfterExit(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return s.SaveAllData()
+	return s.SaveAllData(ctx)
 }
 
 // SaveAllData writes all in-memory metrics to database storage.
-func (s *DatabaseService) SaveAllData() error {
+func (s *DatabaseService) SaveAllData(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	data := s.memRepo.GetAll()
-	return s.repo.SetAllData(data)
+	if len(data) == 0 {
+		return nil
+	}
+	return s.repo.SetAllData(ctx, data)
 }
 
 // SetDataUsingMetrics stores a batch of metric models.
-func (s *DatabaseService) SetDataUsingMetrics(metrics []models.Metrics) error {
+func (s *DatabaseService) SetDataUsingMetrics(ctx context.Context, metrics []models.Metrics) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	normalized, err := normalizeMetricBatch(metrics)
 	if err != nil {
 		return err
 	}
+	if len(normalized) == 0 {
+		return nil
+	}
 
-	return retryRetriablePostgresError(func() error {
-		return s.repo.SetAllData(normalized)
-	})
+	return s.repo.SetAllData(ctx, normalized)
 }
 
 func normalizeMetricBatch(metrics []models.Metrics) ([]models.Metrics, error) {

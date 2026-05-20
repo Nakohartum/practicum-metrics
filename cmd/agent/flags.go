@@ -13,7 +13,7 @@ type Config struct {
 	address        Address
 	reportInterval int64  `env:"REPORT_INTERVAL"`
 	pollInterval   int64  `env:"POLL_INTERVAL"`
-	secretKey      string `env:"KEY"`
+	secretKey      string `env:"SECRET_KEY"`
 	rateLimit      int64  `env:"RATE_LIMIT"`
 }
 
@@ -54,14 +54,15 @@ var configData = Config{
 	address:        Address{host: "localhost:8080"},
 	reportInterval: 10,
 	pollInterval:   2,
+	rateLimit:      1024,
 }
 
 func parseFlags() {
 	flag.Var(&configData.address, "a", "server address (host:port)")
-	flag.Int64Var(&configData.reportInterval, "r", 10, "report interval")
-	flag.Int64Var(&configData.pollInterval, "p", 2, "poll interval")
-	flag.StringVar(&configData.secretKey, "k", "", "secret key for signing data")
-	flag.Int64Var(&configData.rateLimit, "l", 1024, "amount of workers")
+	flag.Int64Var(&configData.reportInterval, "r", configData.reportInterval, "report interval")
+	flag.Int64Var(&configData.pollInterval, "p", configData.pollInterval, "poll interval")
+	flag.StringVar(&configData.secretKey, "k", configData.secretKey, "secret key for signing data")
+	flag.Int64Var(&configData.rateLimit, "l", configData.rateLimit, "amount of workers")
 	flag.Parse()
 
 	if v, ok := os.LookupEnv("ADDRESS"); ok {
@@ -78,7 +79,9 @@ func parseFlags() {
 			configData.pollInterval = intVal
 		}
 	}
-	if v, ok := os.LookupEnv("KEY"); ok {
+	if v, ok := os.LookupEnv("SECRET_KEY"); ok {
+		configData.secretKey = v
+	} else if v, ok := os.LookupEnv("KEY"); ok {
 		configData.secretKey = v
 	}
 	if v, ok := os.LookupEnv("RATE_LIMIT"); ok {

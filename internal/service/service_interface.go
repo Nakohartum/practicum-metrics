@@ -8,12 +8,12 @@ import (
 
 // Service defines metric operations used by HTTP handlers.
 type Service interface {
-	GetData(string, string) (models.Metrics, error)
-	SetData(string, string, string) error
-	GetAll() []models.Metrics
-	SaveAllData() error
+	GetData(context.Context, string, string) (models.Metrics, error)
+	SetData(context.Context, string, string, string) error
+	GetAll(context.Context) []models.Metrics
+	SaveAllData(context.Context) error
 	RunSaving(ctx context.Context)
 	Ping(context.Context) error
 	SaveDataAfterExit(context.Context) error
-	SetDataUsingMetrics(metrics []models.Metrics) error
+	SetDataUsingMetrics(context.Context, []models.Metrics) error
 }

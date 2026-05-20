@@ -174,7 +174,7 @@ func TestMetricsHandlerUpdateMetricsDataHandle(t *testing.T) {
 			name: "returns bad request for missing delta in strict mode",
 			body: `{"id":"hits","type":"counter"}`,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+				svc.EXPECT().SetDataUsingMetrics(gomock.Any(), []models.Metrics{
 					{ID: "hits", MType: models.Counter},
 				}).Return(service.ErrCounterDeltaRequired)
 			},
@@ -184,7 +184,7 @@ func TestMetricsHandlerUpdateMetricsDataHandle(t *testing.T) {
 			name: "saves valid metric",
 			body: `{"id":"hits","type":"counter","delta":3}`,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+				svc.EXPECT().SetDataUsingMetrics(gomock.Any(), []models.Metrics{
 					{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
 				}).Return(nil)
 			},
@@ -194,7 +194,7 @@ func TestMetricsHandlerUpdateMetricsDataHandle(t *testing.T) {
 			name: "returns bad request for service failure",
 			body: `{"id":"hits","type":"counter","delta":3}`,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+				svc.EXPECT().SetDataUsingMetrics(gomock.Any(), []models.Metrics{
 					{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
 				}).Return(assert.AnError)
 			},
@@ -228,7 +228,7 @@ func TestMetricsHandlerUpdateMetricsDataHandleNotifiesAudit(t *testing.T) {
 	defer ctrl.Finish()
 
 	svc := mocks.NewMockService(ctrl)
-	svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+	svc.EXPECT().SetDataUsingMetrics(gomock.Any(), []models.Metrics{
 		{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
 	}).Return(nil)
 
@@ -269,7 +269,7 @@ func TestMetricsHandlerGetMetricsByNameHandle(t *testing.T) {
 			name: "returns not found when service fails",
 			body: `{"id":"hits","type":"counter"}`,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().GetData(models.Counter, "hits").Return(models.Metrics{}, assert.AnError)
+				svc.EXPECT().GetData(gomock.Any(), models.Counter, "hits").Return(models.Metrics{}, assert.AnError)
 			},
 			wantStatus: http.StatusNotFound,
 		},
@@ -277,7 +277,7 @@ func TestMetricsHandlerGetMetricsByNameHandle(t *testing.T) {
 			name: "returns metric json",
 			body: `{"id":"hits","type":"counter"}`,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().GetData(models.Counter, "hits").Return(models.Metrics{
+				svc.EXPECT().GetData(gomock.Any(), models.Counter, "hits").Return(models.Metrics{
 					ID:    "hits",
 					MType: models.Counter,
 					Delta: ptrInt64(5),
@@ -318,7 +318,7 @@ func TestMetricsHandlerGetMetricsByNameHandleDoesNotNotifyAudit(t *testing.T) {
 	defer ctrl.Finish()
 
 	svc := mocks.NewMockService(ctrl)
-	svc.EXPECT().GetData(models.Counter, "hits").Return(models.Metrics{
+	svc.EXPECT().GetData(gomock.Any(), models.Counter, "hits").Return(models.Metrics{
 		ID:    "hits",
 		MType: models.Counter,
 		Delta: ptrInt64(5),
@@ -360,7 +360,7 @@ func TestMetricsHandlerSetMetricDataHandle(t *testing.T) {
 			method: http.MethodPost,
 			params: map[string]string{"metricType": models.Counter, "metricName": "hits", "metricValue": "1"},
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetData(models.Counter, "hits", "1").Return(nil)
+				svc.EXPECT().SetData(gomock.Any(), models.Counter, "hits", "1").Return(nil)
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -369,7 +369,7 @@ func TestMetricsHandlerSetMetricDataHandle(t *testing.T) {
 			method: http.MethodPost,
 			params: map[string]string{"metricType": models.Counter, "metricName": "hits", "metricValue": "1"},
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetData(models.Counter, "hits", "1").Return(assert.AnError)
+				svc.EXPECT().SetData(gomock.Any(), models.Counter, "hits", "1").Return(assert.AnError)
 			},
 			wantStatus: http.StatusBadRequest,
 		},
@@ -423,7 +423,7 @@ func TestMetricsHandlerGetMetricDataHandle(t *testing.T) {
 			method: http.MethodGet,
 			params: map[string]string{"metricType": models.Counter, "metricName": "hits"},
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().GetData(models.Counter, "hits").Return(models.Metrics{}, assert.AnError)
+				svc.EXPECT().GetData(gomock.Any(), models.Counter, "hits").Return(models.Metrics{}, assert.AnError)
 			},
 			wantStatus: http.StatusNotFound,
 		},
@@ -432,7 +432,7 @@ func TestMetricsHandlerGetMetricDataHandle(t *testing.T) {
 			method: http.MethodGet,
 			params: map[string]string{"metricType": models.Counter, "metricName": "hits"},
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().GetData(models.Counter, "hits").Return(models.Metrics{
+				svc.EXPECT().GetData(gomock.Any(), models.Counter, "hits").Return(models.Metrics{
 					ID:    "hits",
 					MType: models.Counter,
 					Delta: ptrInt64(5),
@@ -446,7 +446,7 @@ func TestMetricsHandlerGetMetricDataHandle(t *testing.T) {
 			method: http.MethodGet,
 			params: map[string]string{"metricType": models.Gauge, "metricName": "load"},
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().GetData(models.Gauge, "load").Return(models.Metrics{
+				svc.EXPECT().GetData(gomock.Any(), models.Gauge, "load").Return(models.Metrics{
 					ID:    "load",
 					MType: models.Gauge,
 					Value: ptrFloat64(1.25),
@@ -494,8 +494,8 @@ func TestNewPageHandler(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			storage := mocks.NewMockStorage(ctrl)
-			handler := NewPageHandler(storage)
+			svc := mocks.NewMockService(ctrl)
+			handler := NewPageHandler(svc)
 
 			require.NotNil(t, handler)
 			require.NotNil(t, handler.tpl)
@@ -520,7 +520,7 @@ func TestMetricsHandlerServePage(t *testing.T) {
 			name:   "renders metrics page",
 			method: http.MethodGet,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().GetAll().Return([]models.Metrics{{ID: "hits", MType: models.Counter, Delta: ptrInt64(1)}})
+				svc.EXPECT().GetAll(gomock.Any()).Return([]models.Metrics{{ID: "hits", MType: models.Counter, Delta: ptrInt64(1)}})
 			},
 			wantStatus:   http.StatusOK,
 			wantBodyPart: "hits",
@@ -628,7 +628,7 @@ func TestMetricsHandlerSetMetricsDataHandle(t *testing.T) {
 			method: http.MethodPost,
 			body:   `{"id":"hits","type":"counter","delta":3}`,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+				svc.EXPECT().SetDataUsingMetrics(gomock.Any(), []models.Metrics{
 					{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
 				}).Return(nil)
 			},
@@ -639,7 +639,7 @@ func TestMetricsHandlerSetMetricsDataHandle(t *testing.T) {
 			method: http.MethodPost,
 			body:   `[{"id":"hits","type":"counter","delta":2},{"id":"hits","type":"counter","delta":3},{"id":"load","type":"gauge","value":1.5},{"id":"load","type":"gauge","value":2.5}]`,
 			mock: func(svc *mocks.MockService) {
-				svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+				svc.EXPECT().SetDataUsingMetrics(gomock.Any(), []models.Metrics{
 					{ID: "hits", MType: models.Counter, Delta: ptrInt64(2)},
 					{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
 					{ID: "load", MType: models.Gauge, Value: ptrFloat64(1.5)},
@@ -676,7 +676,7 @@ func TestMetricsHandlerSetMetricsDataHandleNotifiesSubmittedMetrics(t *testing.T
 	defer ctrl.Finish()
 
 	svc := mocks.NewMockService(ctrl)
-	svc.EXPECT().SetDataUsingMetrics([]models.Metrics{
+	svc.EXPECT().SetDataUsingMetrics(gomock.Any(), []models.Metrics{
 		{ID: "hits", MType: models.Counter, Delta: ptrInt64(3)},
 		{ID: "load", MType: models.Gauge, Value: ptrFloat64(1.5)},
 	}).Return(nil)
@@ -706,7 +706,7 @@ func TestMetricsHandlerGetMetricsByNameHandleResponseJSON(t *testing.T) {
 			defer ctrl.Finish()
 
 			svc := mocks.NewMockService(ctrl)
-			svc.EXPECT().GetData(models.Counter, "hits").Return(models.Metrics{
+			svc.EXPECT().GetData(gomock.Any(), models.Counter, "hits").Return(models.Metrics{
 				ID:    "hits",
 				MType: models.Counter,
 				Delta: ptrInt64(7),

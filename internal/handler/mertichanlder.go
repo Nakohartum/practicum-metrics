@@ -14,7 +14,6 @@ import (
 
 	"github.com/Nakohartum/practicum-metrics/internal/audit"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
-	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
 )
 
@@ -84,7 +83,7 @@ func (mh *MetricsHandler) UpdateMetricsDataHandle() http.Handler {
 			writeJSONError(w, "no metric's type", http.StatusBadRequest)
 			return
 		}
-		if err := mh.service.SetDataUsingMetrics([]models.Metrics{metric}); err != nil {
+		if err := mh.service.SetDataUsingMetrics(r.Context(), []models.Metrics{metric}); err != nil {
 			writeJSONError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -107,7 +106,7 @@ func (mh *MetricsHandler) GetMetricsByNameHandle() http.Handler {
 			writeJSONError(w, "metric's name and type are required", http.StatusBadRequest)
 			return
 		}
-		metricData, err := mh.service.GetData(metricToSearch.MType, metricToSearch.ID)
+		metricData, err := mh.service.GetData(r.Context(), metricToSearch.MType, metricToSearch.ID)
 		if err != nil {
 			writeJSONError(w, "no metric found", http.StatusNotFound)
 			return
@@ -142,7 +141,7 @@ func (mh *MetricsHandler) SetMetricDataHandle() http.Handler {
 			return
 		}
 
-		if err := mh.service.SetData(metricType, metricName, metricValue); err != nil {
+		if err := mh.service.SetData(r.Context(), metricType, metricName, metricValue); err != nil {
 			http.Error(w, "error setting metric data", http.StatusBadRequest)
 			return
 		}
@@ -168,7 +167,7 @@ func (mh *MetricsHandler) GetMetricDataHandle() http.Handler {
 			return
 		}
 
-		metricData, err := mh.service.GetData(metricType, metricName)
+		metricData, err := mh.service.GetData(r.Context(), metricType, metricName)
 
 		if err != nil {
 			http.Error(w, "no metric found", http.StatusNotFound)
@@ -188,12 +187,12 @@ func (mh *MetricsHandler) GetMetricDataHandle() http.Handler {
 
 // PageHandler renders an HTML page with stored metrics.
 type PageHandler struct {
-	service repository.Storage
+	service service.Service
 	tpl     *template.Template
 }
 
 // NewPageHandler creates a PageHandler for the provided storage.
-func NewPageHandler(s repository.Storage) *PageHandler {
+func NewPageHandler(s service.Service) *PageHandler {
 	const page = `
 <!doctype html>
 <html lang="ru">
@@ -243,7 +242,7 @@ func (mh *MetricsHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	data := mh.service.GetAll()
+	data := mh.service.GetAll(r.Context())
 
 	w.WriteHeader(http.StatusOK)
 
@@ -297,7 +296,7 @@ func (mh *MetricsHandler) SetMetricsDataHandle() http.Handler {
 			metricsNames = append(metricsNames, metric.ID)
 		}
 
-		if err := mh.service.SetDataUsingMetrics(metrics); err != nil {
+		if err := mh.service.SetDataUsingMetrics(r.Context(), metrics); err != nil {
 			writeJSONError(w, err.Error(), http.StatusBadRequest)
 			return
 		}

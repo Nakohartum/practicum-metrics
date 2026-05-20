@@ -65,32 +65,32 @@ func (mr *MockDatabaseAdapterMockRecorder) Close(ctx interface{}) *gomock.Call {
 }
 
 // GetAll mocks base method.
-func (m *MockDatabaseAdapter) GetAll() []models.Metrics {
+func (m *MockDatabaseAdapter) GetAll(ctx context.Context) []models.Metrics {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAll")
+	ret := m.ctrl.Call(m, "GetAll", ctx)
 	ret0, _ := ret[0].([]models.Metrics)
 	return ret0
 }
 
 // GetAll indicates an expected call of GetAll.
-func (mr *MockDatabaseAdapterMockRecorder) GetAll() *gomock.Call {
+func (mr *MockDatabaseAdapterMockRecorder) GetAll(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockDatabaseAdapter)(nil).GetAll))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockDatabaseAdapter)(nil).GetAll), ctx)
 }
 
 // GetData mocks base method.
-func (m *MockDatabaseAdapter) GetData(metricType, metricKey string) (models.Metrics, error) {
+func (m *MockDatabaseAdapter) GetData(ctx context.Context, metricType, metricKey string) (models.Metrics, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetData", metricType, metricKey)
+	ret := m.ctrl.Call(m, "GetData", ctx, metricType, metricKey)
 	ret0, _ := ret[0].(models.Metrics)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetData indicates an expected call of GetData.
-func (mr *MockDatabaseAdapterMockRecorder) GetData(metricType, metricKey interface{}) *gomock.Call {
+func (mr *MockDatabaseAdapterMockRecorder) GetData(ctx, metricType, metricKey interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetData", reflect.TypeOf((*MockDatabaseAdapter)(nil).GetData), metricType, metricKey)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetData", reflect.TypeOf((*MockDatabaseAdapter)(nil).GetData), ctx, metricType, metricKey)
 }
 
 // Open mocks base method.
@@ -108,17 +108,17 @@ func (mr *MockDatabaseAdapterMockRecorder) Open(ctx interface{}) *gomock.Call {
 }
 
 // SetData mocks base method.
-func (m *MockDatabaseAdapter) SetData(metric models.Metrics) error {
+func (m *MockDatabaseAdapter) SetData(ctx context.Context, metric models.Metrics) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetData", metric)
+	ret := m.ctrl.Call(m, "SetData", ctx, metric)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetData indicates an expected call of SetData.
-func (mr *MockDatabaseAdapterMockRecorder) SetData(metric interface{}) *gomock.Call {
+func (mr *MockDatabaseAdapterMockRecorder) SetData(ctx, metric interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetData", reflect.TypeOf((*MockDatabaseAdapter)(nil).SetData), metric)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetData", reflect.TypeOf((*MockDatabaseAdapter)(nil).SetData), ctx, metric)
 }
 
 // SetMultipleDataViaTransaction mocks base method.

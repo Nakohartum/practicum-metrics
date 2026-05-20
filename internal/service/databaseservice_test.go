@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,7 +27,7 @@ func TestDatabaseServiceSetData(t *testing.T) {
 			metricType: models.Counter,
 			value:      "7",
 			mock: func(adapter *mocks.MockDatabaseAdapter) {
-				adapter.EXPECT().SetData(models.Metrics{
+				adapter.EXPECT().SetData(gomock.Any(), models.Metrics{
 					ID:    "metric",
 					MType: models.Counter,
 					Delta: int64Ptr(7),
@@ -41,27 +39,11 @@ func TestDatabaseServiceSetData(t *testing.T) {
 			metricType: models.Gauge,
 			value:      "7.5",
 			mock: func(adapter *mocks.MockDatabaseAdapter) {
-				adapter.EXPECT().SetData(models.Metrics{
+				adapter.EXPECT().SetData(gomock.Any(), models.Metrics{
 					ID:    "metric",
 					MType: models.Gauge,
 					Value: float64Ptr(7.5),
 				}).Return(nil)
-			},
-		},
-		{
-			name:       "retries retriable postgres error",
-			metricType: models.Counter,
-			value:      "7",
-			mock: func(adapter *mocks.MockDatabaseAdapter) {
-				metric := models.Metrics{
-					ID:    "metric",
-					MType: models.Counter,
-					Delta: int64Ptr(7),
-				}
-				gomock.InOrder(
-					adapter.EXPECT().SetData(metric).Return(&pgconn.PgError{Code: pgerrcode.ConnectionFailure}),
-					adapter.EXPECT().SetData(metric).Return(nil),
-				)
 			},
 		},
 		{
@@ -98,7 +80,7 @@ func TestDatabaseServiceSetData(t *testing.T) {
 				1,
 			)
 
-			err := svc.SetData(tt.metricType, "metric", tt.value)
+			err := svc.SetData(context.Background(), tt.metricType, "metric", tt.value)
 			if tt.assertErr != nil {
 				tt.assertErr(t, err)
 				return

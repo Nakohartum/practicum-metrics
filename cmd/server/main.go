@@ -27,9 +27,8 @@ import (
 var (
 	buildVersion string
 	buildDate    string
-	buildCommit  string 
+	buildCommit  string
 )
-
 
 func main() {
 	fmt.Printf("Build version: %s\n", buildValue(buildVersion))
@@ -155,16 +154,16 @@ func setupServer(service service.Service, auditor *audit.Auditor, appCtx context
 
 	if configData.FileWork.restore {
 
-		res := service.GetAll()
+		res := service.GetAll(appCtx)
 		if len(res) == 0 {
 			slog.Info("no data to restore")
 		}
 		for _, metric := range res {
 			switch metric.MType {
 			case models.Gauge:
-				service.SetData(metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
+				service.SetData(appCtx, metric.MType, metric.ID, strconv.FormatFloat(*metric.Value, 'f', -1, 64))
 			case models.Counter:
-				service.SetData(metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))
+				service.SetData(appCtx, metric.MType, metric.ID, strconv.FormatInt(*metric.Delta, 10))
 			}
 		}
 	}
@@ -204,7 +203,6 @@ func setupAuditor() *audit.Auditor {
 
 	return audit.NewAuditor(observers...)
 }
-
 
 func buildValue(v string) string {
 	if v == "" {

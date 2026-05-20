@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -45,7 +47,7 @@ func TestDatabaseRepositorySetAllData(t *testing.T) {
 			tt.mock(adapter)
 			repo := NewDatabaseRepository(adapter)
 
-			err := repo.SetAllData(tt.metrics)
+			err := repo.SetAllData(context.Background(), tt.metrics)
 			if tt.wantErr != nil {
 				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.wantErr)
@@ -55,4 +57,20 @@ func TestDatabaseRepositorySetAllData(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestDatabaseRepositorySetDataRetriesRetriablePostgresError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	metric := models.Metrics{ID: "metric", MType: models.Counter, Delta: int64Ptr(7)}
+	adapter := mocks.NewMockDatabaseAdapter(ctrl)
+	gomock.InOrder(
+		adapter.EXPECT().SetData(gomock.Any(), metric).Return(&pgconn.PgError{Code: pgerrcode.ConnectionFailure}),
+		adapter.EXPECT().SetData(gomock.Any(), metric).Return(nil),
+	)
+
+	repo := NewDatabaseRepository(adapter)
+
+	require.NoError(t, repo.SetData(context.Background(), metric))
 }

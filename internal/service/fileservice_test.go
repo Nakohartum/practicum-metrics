@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -64,7 +65,7 @@ func TestFileServiceGetData(t *testing.T) {
 				1,
 			)
 
-			got, err := svc.GetData(tt.metricType, tt.key)
+			got, err := svc.GetData(context.Background(), tt.metricType, tt.key)
 			if tt.wantErr != nil {
 				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.wantErr)
