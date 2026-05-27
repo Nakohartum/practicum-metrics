@@ -1,48 +1,39 @@
 package repository
 
 import (
+	"context"
+
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
-type Storage interface {
-	GetData(string, string) (models.Metrics, error)
-	SetData(string, string, string) error
-	GetAll() []models.Metrics
-}
-
-type FileWorker interface {
-	WriteData (data []models.Metrics) error
-	ReadData() ([]models.Metrics, error)
-}
-
+// MemRepo adapts Storage to the repository layer.
 type MemRepo struct {
 	storage Storage
-	fileWorker FileWorker
 }
 
-func NewMemRepo(config Storage, fileWorker FileWorker) *MemRepo {
+// NewMemRepo creates a MemRepo for the provided storage.
+func NewMemRepo(config Storage) *MemRepo {
 	return &MemRepo{
 		storage: config,
-		fileWorker: fileWorker,
 	}
 }
 
+// GetData returns one metric by type and name.
 func (mr *MemRepo) GetData(metricType, key string) (models.Metrics, error) {
 	return mr.storage.GetData(metricType, key)
 }
 
+// SetData stores a metric value by type and name.
 func (mr *MemRepo) SetData(metricType, key, value string) error {
 	return mr.storage.SetData(metricType, key, value)
 }
 
-func (mr *MemRepo) GetAll() []models.Metrics{
+// GetAll returns all stored metrics.
+func (mr *MemRepo) GetAll() []models.Metrics {
 	return mr.storage.GetAll()
 }
 
-func (mr *MemRepo) WriteData(data []models.Metrics) error {
-	return mr.fileWorker.WriteData(data)
-}
-
-func (mr *MemRepo) ReadData() ([]models.Metrics, error) {
-	return mr.fileWorker.ReadData()
+// Ping checks that the underlying storage is available.
+func (mr *MemRepo) Ping(ctx context.Context) error {
+	return mr.storage.Ping(ctx)
 }

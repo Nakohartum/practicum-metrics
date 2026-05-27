@@ -1,57 +1,57 @@
 package config
 
 import (
-	"errors"
+	"context"
 	"strconv"
 
-	"github.com/Nakohartum/practicum-metrics/internal/model"
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
-var (
-	ErrNotExists = errors.New("item does not exist")
-)
-
+// MemStorage keeps metric values in memory.
 type MemStorage struct {
 	data *models.StorageModel
 }
 
+// NewMemStorage creates MemStorage around an existing storage model.
 func NewMemStorage(model *models.StorageModel) *MemStorage {
 	return &MemStorage{
 		data: model,
 	}
 }
 
+// NewMemStubStorage creates empty MemStorage for default in-memory operation.
 func NewMemStubStorage() *MemStorage {
 	return &MemStorage{
 		data: models.NewStorageModel(),
 	}
 }
 
-func (ms *MemStorage) GetData(metricType, key string) (models.Metrics, error){
-	switch metricType{
+// GetData returns one metric by type and name.
+func (ms *MemStorage) GetData(metricType, key string) (models.Metrics, error) {
+	switch metricType {
 	case models.Counter:
-		if val, exists := ms.data.Counters[key]; exists{
+		if val, exists := ms.data.Counters[key]; exists {
 			return models.Metrics{
 				MType: models.Counter,
-				ID: key,
+				ID:    key,
 				Delta: &val,
 			}, nil
 		}
 	case models.Gauge:
-		if val, exists := ms.data.Gauges[key]; exists{
+		if val, exists := ms.data.Gauges[key]; exists {
 			return models.Metrics{
 				MType: models.Gauge,
-				ID: key,
+				ID:    key,
 				Value: &val,
-			}, nil 
+			}, nil
 		}
 	}
 	return models.Metrics{}, ErrNotExists
 }
 
-
-func (ms *MemStorage) SetData(metricType, key, value string) error{
-	switch metricType{
+// SetData stores a metric value by type and name.
+func (ms *MemStorage) SetData(metricType, key, value string) error {
+	switch metricType {
 	case models.Counter:
 		val, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
@@ -68,16 +68,17 @@ func (ms *MemStorage) SetData(metricType, key, value string) error{
 		return nil
 	}
 
-	return errors.New("no metric found")
+	return ErrMetricNotFound
 }
 
-func (ms *MemStorage) GetAll() []models.Metrics{
-	var res []models.Metrics;
+// GetAll returns all in-memory metrics.
+func (ms *MemStorage) GetAll() []models.Metrics {
+	var res []models.Metrics
 
-	for k, v := range ms.data.Counters{
+	for k, v := range ms.data.Counters {
 		res = append(res, models.Metrics{
 			MType: models.Counter,
-			ID: k,
+			ID:    k,
 			Delta: &v,
 		})
 	}
@@ -85,10 +86,15 @@ func (ms *MemStorage) GetAll() []models.Metrics{
 	for k, v := range ms.data.Gauges {
 		res = append(res, models.Metrics{
 			MType: models.Gauge,
-			ID: k,
+			ID:    k,
 			Value: &v,
 		})
 	}
 
 	return res
+}
+
+// Ping reports whether in-memory storage is available.
+func (ms *MemStorage) Ping(ctx context.Context) error {
+	return nil
 }

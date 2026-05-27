@@ -1,205 +1,178 @@
 package agent
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
-func TestSetGaugeMetric(t *testing.T) {
+func TestNewAgentMetrics(t *testing.T) {
+	agent := NewAgentMetrics(1, 2, 3, "secret")
 
-	tests := []struct {
-		name       string 
-		initialGaugeMetrics map[string]float64
-		metricName string
-		value      float64
-		expected   float64
-		times      int
-	}{
-		{
-			name: "Positive case #1",
-			initialGaugeMetrics: map[string]float64{
-				"testMetric":2.4,
-			},
-			metricName: "testMetric",
-			value: 3.5,
-			expected: 3.5,
+	require.NotNil(t, agent)
+	assert.Equal(t, time.Second, agent.PollInterval)
+	assert.Equal(t, 2*time.Second, agent.ReportInterval)
+	assert.Equal(t, 3, agent.rateLimit)
+	assert.Equal(t, "secret", agent.key)
+	assert.NotNil(t, agent.client)
+}
+
+func TestCollectSnapshot(t *testing.T) {
+	agent := NewAgentMetrics(1, 1, 1, "")
+
+	got := agent.collectSnapshot()
+
+	require.NotEmpty(t, got.Metrics)
+	assert.Equal(t, 1, agent.pollCount)
+
+	metricsByID := make(map[string]models.Metrics, len(got.Metrics))
+	for _, metric := range got.Metrics {
+		metricsByID[metric.ID] = metric
+	}
+
+	randomMetric, ok := metricsByID["RandomValue"]
+	require.True(t, ok)
+	assert.Equal(t, models.Gauge, randomMetric.MType)
+	require.NotNil(t, randomMetric.Value)
+
+	pollCountMetric, ok := metricsByID["PollCount"]
+	require.True(t, ok)
+	assert.Equal(t, models.Counter, pollCountMetric.MType)
+	require.NotNil(t, pollCountMetric.Delta)
+	assert.EqualValues(t, 1, *pollCountMetric.Delta)
+}
+
+func TestSendSnapshot(t *testing.T) {
+	var got []models.Metrics
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		assert.Equal(t, "/updates", r.URL.Path)
+
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		if r.Header.Get("Content-Encoding") == "gzip" {
+			reader, err := gzip.NewReader(bytes.NewReader(body))
+			require.NoError(t, err)
+			body, err = io.ReadAll(reader)
+			require.NoError(t, err)
+			require.NoError(t, reader.Close())
+		}
+
+		require.NoError(t, json.Unmarshal(body, &got))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	agent := NewAgentMetrics(1, 1, 1, "")
+	snap := snapshot{
+		Metrics: []models.Metrics{
+			newGaugeMetric("Alloc", 1.5),
+			newCounterMetric("PollCount", 2),
 		},
+	}
+
+	agent.sendSnapshot(snap, server.URL)
+
+	assert.Equal(t, 1, callCount)
+	require.Len(t, got, 2)
+	assert.Equal(t, "Alloc", got[0].ID)
+	assert.Equal(t, models.Gauge, got[0].MType)
+	assert.Equal(t, "PollCount", got[1].ID)
+	assert.Equal(t, models.Counter, got[1].MType)
+}
+
+func TestSendDataWithDeadline(t *testing.T) {
+	tests := []struct {
+		name             string
+		key              string
+		firstStatusCode  int
+		secondStatusCode int
+		wantErr          bool
+		wantCalls        int
+	}{
+		{name: "sends gzip payload successfully", key: "secret", firstStatusCode: http.StatusOK, wantCalls: 1},
+		{name: "falls back to plain payload", key: "secret", firstStatusCode: http.StatusInternalServerError, secondStatusCode: http.StatusOK, wantCalls: 2},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ma := NewAgentMetrics(0, 0)
-			ma.gaugeMetrics = tt.initialGaugeMetrics
-			ma.setGaugeMetric(tt.metricName, tt.value)
-			if ma.gaugeMetrics[tt.metricName] != tt.expected {
-				t.Errorf("Not correct value for key: %s. Value: %f. Expected: %f", tt.metricName, ma.gaugeMetrics[tt.metricName], tt.expected)
+			callCount := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				callCount++
+				body, err := io.ReadAll(r.Body)
+				require.NoError(t, err)
+
+				if callCount == 1 {
+					require.Equal(t, "gzip", r.Header.Get("Content-Encoding"))
+					reader, err := gzip.NewReader(bytes.NewReader(body))
+					require.NoError(t, err)
+					decoded, err := io.ReadAll(reader)
+					require.NoError(t, err)
+					require.NoError(t, reader.Close())
+					assert.Equal(t, `{"id":"hits"}`, string(decoded))
+					assert.NotEmpty(t, r.Header.Get("HashSHA256"))
+					w.WriteHeader(tt.firstStatusCode)
+					return
+				}
+
+				assert.Empty(t, r.Header.Get("Content-Encoding"))
+				assert.Equal(t, `{"id":"hits"}`, string(body))
+				assert.NotEmpty(t, r.Header.Get("HashSHA256"))
+				w.WriteHeader(tt.secondStatusCode)
+			}))
+			defer server.Close()
+
+			agent := NewAgentMetrics(1, 1, 1, tt.key)
+			err := agent.sendDataWithDeadline([]byte(`{"id":"hits"}`), server.URL, time.Second)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
 			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantCalls, callCount)
 		})
 	}
 }
 
-func TestSendGaugeMetrics(t *testing.T){
-	type wantReq struct{
-		name string
-		value string
-	}
-	tests := []struct{
-		name string
-		metrics map[string]float64
-		want []wantReq
-	}{
-		{
-			name: "two metrics",
-			metrics: map[string]float64{
-				"alloc":     1.5,
-				"heapAlloc": 42,
-			},
-			want: []wantReq{
-				{name: "alloc", value: "1.5"},
-				{name: "heapAlloc", value: "42"},
-			},
-		},
-		{
-			name: "single metric",
-			metrics: map[string]float64{
-				"randomValue": 0.25,
-			},
-			want: []wantReq{
-				{name: "randomValue", value: "0.25"},
-			},
-		},
-	}
+func TestCompressData(t *testing.T) {
+	compressed, err := compressData([]byte(`{"id":"hits"}`))
 
-	for _, tt := range tests{
-		t.Run(tt.name, func(t *testing.T){
-			ma := NewAgentMetrics(0,0)
-			ma.gaugeMetrics = tt.metrics
-			
-			var gotPaths []string
-			var gotMethods []string
-			var gotContentTypes []string
-
-			// создаем сервер
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
-				gotPaths = append(gotPaths, r.URL.Path)
-				gotMethods = append(gotMethods, r.Method)
-				gotContentTypes = append(gotContentTypes, r.Header.Get("Content-Type"))
-
-				w.WriteHeader(http.StatusOK)
-
-				_,_ = w.Write([]byte("ok"))
-			}))
-
-			defer ts.Close()
-
-			ma.client.SetTransport(ts.Client().Transport)
-
-			ma.sendGaugeMetrics(ts.URL)
-
-			// проверяем все ли пути прошли
-			if len(gotPaths) != len(tt.want){
-				t.Fatalf("requests=%d. want=%d", len(gotPaths), len(tt.want))
-			}
-
-
-			// смотрим соответствие каждого запроса
-			for i := range gotPaths {
-				if gotMethods[i] != http.MethodPost{
-					t.Fatalf("method=%s. want=%s", gotMethods[i], http.MethodPost)
-				}
-
-				if gotContentTypes[i] != "application/json"{
-					t.Fatalf("Content-Type=%s, want=%s", gotContentTypes[i], "application/json")
-				}
-
-				if !strings.HasPrefix(gotPaths[i], "/update"){
-					t.Fatalf("unexpected path:%s", gotPaths[i])
-				}
-			}
-		})
-	}
+	require.NoError(t, err)
+	reader, err := gzip.NewReader(bytes.NewReader(compressed))
+	require.NoError(t, err)
+	decoded, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.NoError(t, reader.Close())
+	assert.Equal(t, `{"id":"hits"}`, string(decoded))
 }
 
-func TestSendCounterMetrics(t *testing.T){
-	type wantReq struct{
+func TestMakeHash(t *testing.T) {
+	tests := []struct {
 		name string
-		value string
-	}
-	tests := []struct{
-		name string
-		metrics map[string]int64
-		want []wantReq
+		body []byte
+		key  string
+		want string
 	}{
-		{
-			name: "two metrics",
-			metrics: map[string]int64{
-				"counterOne":     1,
-				"counterTwo": 1,
-			},
-			want: []wantReq{
-				{name: "counterOne", value: "1"},
-				{name: "counterTwo", value: "1"},
-			},
-		},
-		{
-			name: "single metric",
-			metrics: map[string]int64{
-				"randomCounter": 1,
-			},
-			want: []wantReq{
-				{name: "randomCounter", value: "1"},
-			},
-		},
+		{name: "returns empty hash without key", body: []byte("abc"), key: "", want: ""},
+		{name: "returns stable hash", body: []byte("abc"), key: "key", want: "afcb12512ff218c850c8672f2f984f34d86f7739c5f4bee205442eb5a6ad6fff"},
 	}
 
-	for _, tt := range tests{
-		t.Run(tt.name, func(t *testing.T){
-			ma := NewAgentMetrics(0,0)
-			ma.counterMetrics = tt.metrics
-			
-			var gotPaths []string
-			var gotMethods []string
-			var gotContentTypes []string
-
-			// создаем сервер
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
-				gotPaths = append(gotPaths, r.URL.Path)
-				gotMethods = append(gotMethods, r.Method)
-				gotContentTypes = append(gotContentTypes, r.Header.Get("Content-Type"))
-
-				w.WriteHeader(http.StatusOK)
-
-				_,_ = w.Write([]byte("ok"))
-			}))
-
-			defer ts.Close()
-
-			ma.client.SetTransport(ts.Client().Transport)
-
-			ma.sendCounterMetrics(ts.URL)
-
-			// проверяем все ли пути прошли
-			if len(gotPaths) != len(tt.want){
-				t.Fatalf("requests=%d. want=%d", len(gotPaths), len(tt.want))
-			}
-
-
-			// смотрим соответствие каждого запроса
-			for i := range gotPaths {
-				if gotMethods[i] != http.MethodPost{
-					t.Fatalf("method=%s. want=%s", gotMethods[i], http.MethodPost)
-				}
-
-				if gotContentTypes[i] != "application/json"{
-					t.Fatalf("Content-Type=%s, want=%s", gotContentTypes[i], "application/json")
-				}
-
-				if !strings.HasPrefix(gotPaths[i], "/update"){
-					t.Fatalf("unexpected path:%s", gotPaths[i])
-				}
-			}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, makeHash(tt.body, tt.key))
 		})
 	}
 }
