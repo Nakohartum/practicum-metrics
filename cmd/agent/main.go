@@ -10,7 +10,7 @@ import (
 var (
 	buildVersion string
 	buildDate    string
-	buildCommit  string 
+	buildCommit  string
 )
 
 func main() {
@@ -18,7 +18,7 @@ func main() {
 	fmt.Printf("Build date: %s\n", buildValue(buildDate))
 	fmt.Printf("Build commit: %s\n", buildValue(buildCommit))
 	parseFlags()
-	var a = agent.NewAgentMetrics(int(configData.pollInterval), int(configData.reportInterval), int(configData.rateLimit), configData.secretKey)
+	var a = agent.NewAgentMetrics(int(configData.pollInterval), int(configData.reportInterval), int(configData.rateLimit), configData.secretKey, configData.CryptoKey)
 	a.Run(context.Background(), configData.address.String())
 }
 

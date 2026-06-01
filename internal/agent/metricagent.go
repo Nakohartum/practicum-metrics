@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log"
+	"log/slog"
 	"math/rand"
 	"net"
 	"net/http"
@@ -20,6 +22,7 @@ import (
 	cpu "github.com/shirou/gopsutil/v4/cpu"
 	memory "github.com/shirou/gopsutil/v4/mem"
 
+	"github.com/Nakohartum/practicum-metrics/internal/cryptoutil"
 	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
@@ -36,10 +39,19 @@ type MetricsAgent struct {
 	sleep          func(time.Duration)
 	pollCount      int
 	rateLimit      int
+	publicKey      *rsa.PublicKey
 }
 
 // NewAgentMetrics creates a MetricsAgent with intervals in seconds.
-func NewAgentMetrics(pollInterval, reportInterval, rateLimit int, key string) *MetricsAgent {
+func NewAgentMetrics(pollInterval, reportInterval, rateLimit int, key string, cryptoKey string) *MetricsAgent {
+	var pubKey *rsa.PublicKey
+	if cryptoKey != "" {
+		var err error
+		pubKey, err = cryptoutil.LoadPublicKey(cryptoKey)
+		if err != nil {
+			slog.Error("failed to load public key", "error", err)
+		}
+	}
 	var agent = MetricsAgent{
 		PollInterval:   time.Duration(pollInterval * int(time.Second)),
 		ReportInterval: time.Duration(reportInterval * int(time.Second)),
@@ -47,6 +59,7 @@ func NewAgentMetrics(pollInterval, reportInterval, rateLimit int, key string) *M
 		client:         resty.New().SetHeader("Content-Type", "application/json"),
 		pollCount:      0,
 		rateLimit:      rateLimit,
+		publicKey:      pubKey,
 	}
 	internalLogger.AttachLoggingToRequest(agent.client)
 	return &agent
@@ -184,24 +197,38 @@ func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, ti
 	if err != nil {
 		log.Println(err)
 	}
-	hash := makeHash(compressedData, mA.key)
+	body := compressedData
+	if mA.publicKey != nil {
+		body, err = cryptoutil.Encrypt(body, mA.publicKey)
+		if err != nil {
+			return err
+		}
+	}
+	hash := makeHash(body, mA.key)
 	req := mA.client.
 		SetTimeout(timeoutDuration).
 		R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
-		SetBody(compressedData)
+		SetBody(body)
 	if hash != "" {
 		req.SetHeader("HashSHA256", hash)
 	}
 	resp, err := req.Post(endpoint)
 	if err != nil || resp.StatusCode() >= http.StatusBadRequest {
-		hash = makeHash(v, mA.key)
+		body := v
+		if mA.publicKey != nil {
+			body, err = cryptoutil.Encrypt(body, mA.publicKey)
+			if err != nil {
+				return err
+			}
+		}
+		hash = makeHash(body, mA.key)
 		req := mA.client.
 			SetTimeout(timeoutDuration).
 			R().
 			SetHeader("Content-Type", "application/json").
-			SetBody(v)
+			SetBody(body)
 
 		if hash != "" {
 			req.SetHeader("HashSHA256", hash)

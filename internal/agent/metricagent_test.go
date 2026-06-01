@@ -3,6 +3,8 @@ package agent
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -13,11 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Nakohartum/practicum-metrics/internal/cryptoutil"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
 
 func TestNewAgentMetrics(t *testing.T) {
-	agent := NewAgentMetrics(1, 2, 3, "secret")
+	agent := NewAgentMetrics(1, 2, 3, "secret", "")
 
 	require.NotNil(t, agent)
 	assert.Equal(t, time.Second, agent.PollInterval)
@@ -25,10 +28,11 @@ func TestNewAgentMetrics(t *testing.T) {
 	assert.Equal(t, 3, agent.rateLimit)
 	assert.Equal(t, "secret", agent.key)
 	assert.NotNil(t, agent.client)
+	assert.Nil(t, agent.publicKey)
 }
 
 func TestCollectSnapshot(t *testing.T) {
-	agent := NewAgentMetrics(1, 1, 1, "")
+	agent := NewAgentMetrics(1, 1, 1, "", "")
 
 	got := agent.collectSnapshot()
 
@@ -75,7 +79,7 @@ func TestSendSnapshot(t *testing.T) {
 	}))
 	defer server.Close()
 
-	agent := NewAgentMetrics(1, 1, 1, "")
+	agent := NewAgentMetrics(1, 1, 1, "", "")
 	snap := snapshot{
 		Metrics: []models.Metrics{
 			newGaugeMetric("Alloc", 1.5),
@@ -134,7 +138,7 @@ func TestSendDataWithDeadline(t *testing.T) {
 			}))
 			defer server.Close()
 
-			agent := NewAgentMetrics(1, 1, 1, tt.key)
+			agent := NewAgentMetrics(1, 1, 1, tt.key, "")
 			err := agent.sendDataWithDeadline([]byte(`{"id":"hits"}`), server.URL, time.Second)
 
 			if tt.wantErr {
@@ -145,6 +149,36 @@ func TestSendDataWithDeadline(t *testing.T) {
 			assert.Equal(t, tt.wantCalls, callCount)
 		})
 	}
+}
+
+func TestSendDataWithDeadlineEncrypted(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		body, err = cryptoutil.Decrypt(body, privateKey)
+		require.NoError(t, err)
+
+		require.Equal(t, "gzip", r.Header.Get("Content-Encoding"))
+		reader, err := gzip.NewReader(bytes.NewReader(body))
+		require.NoError(t, err)
+		decoded, err := io.ReadAll(reader)
+		require.NoError(t, err)
+		require.NoError(t, reader.Close())
+		assert.Equal(t, `{"id":"hits"}`, string(decoded))
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	agent := NewAgentMetrics(1, 1, 1, "", "")
+	agent.publicKey = &privateKey.PublicKey
+
+	err = agent.sendDataWithDeadline([]byte(`{"id":"hits"}`), server.URL, time.Second)
+	require.NoError(t, err)
 }
 
 func TestCompressData(t *testing.T) {

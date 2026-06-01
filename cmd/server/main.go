@@ -58,7 +58,7 @@ func run() error {
 		service = setupDatabaseService(memRepo)
 	}
 
-	server := setupServer(service, auditor, appCtx)
+	server := setupServer(service, appCtx, auditor)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -139,6 +139,7 @@ func setupRouter(service service.Service) *chi.Mux {
 
 	router.Use(middleware.StripSlashes)
 	router.Use(handler.HashMiddleware(configData.secretKey))
+	router.Use(handler.DecryptMiddleware(configData.CryptoKey))
 	router.Use(handler.GetZippedDataMiddleware)
 	router.Use(handler.GiveZippedDataMiddleware)
 	if configData.FileWork.storeInterval == 0 {
@@ -147,10 +148,10 @@ func setupRouter(service service.Service) *chi.Mux {
 	return router
 }
 
-func setupServer(service service.Service, auditor *audit.Auditor, appCtx context.Context) http.Server {
+func setupServer(service service.Service, appCtx context.Context, auditors ...*audit.Auditor) http.Server {
 	router := setupRouter(service)
 
-	metricsHandler := handler.NewMetricsHandler(service, auditor)
+	metricsHandler := handler.NewMetricsHandler(service, auditors...)
 
 	if configData.FileWork.restore {
 

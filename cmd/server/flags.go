@@ -16,6 +16,7 @@ type Config struct {
 	secretKey       string `env:"SECRET_KEY"`
 	AuditFile       string `env:"AUDIT_FILE"`
 	AuditUrl        string `env:"AUDIT_URL"`
+	CryptoKey       string `env:"CRYPTO_KEY"`
 }
 
 // DatabaseAddress stores the database connection string.
@@ -76,6 +77,7 @@ func parseFlags() {
 	flag.StringVar(&configData.secretKey, "k", "", "secret key for signing data")
 	flag.StringVar(&configData.AuditUrl, "audit-url", "", "path to audit log url")
 	flag.StringVar(&configData.AuditFile, "audit-file", "", "path to audit log file")
+	flag.StringVar(&configData.CryptoKey, "crypto-key", configData.CryptoKey, "key for encrypting data")
 	flag.Parse()
 
 	if v, ok := os.LookupEnv("ADDRESS"); ok && v != "" {
@@ -118,5 +120,9 @@ func parseFlags() {
 
 	if v, ok := os.LookupEnv("AUDIT_URL"); ok && v != "" {
 		configData.AuditUrl = v
+	}
+
+	if v, ok := os.LookupEnv("CRYPTO_KEY"); ok {
+		configData.CryptoKey = v
 	}
 }
