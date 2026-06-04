@@ -1,12 +1,25 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 )
+
+type JSONConfig struct {
+	Address         *string `json:"address"`
+	StoreInterval   *int64  `json:"store_interval"`
+	FileStoragePath *string `json:"file_storage_path"`
+	Restore         *bool   `json:"restore"`
+	DatabaseDSN     *string `json:"database_dsn"`
+	SecretKey       *string `json:"secret_key"`
+	AuditFile       *string `json:"audit_file"`
+	AuditURL        *string `json:"audit_url"`
+	CryptoKey       *string `json:"crypto_key"`
+}
 
 // Config contains server runtime settings parsed from flags and environment.
 type Config struct {
@@ -67,18 +80,106 @@ var configData = Config{
 	},
 }
 
-func parseFlags() {
+func applyJSONConfig(cfg JSONConfig) {
+	if cfg.Address != nil {
+		_ = configData.Address.Set(*cfg.Address)
+	}
+	if cfg.StoreInterval != nil {
+		configData.FileWork.storeInterval = *cfg.StoreInterval
+	}
+	if cfg.FileStoragePath != nil {
+		configData.FileWork.fileStoragePath = *cfg.FileStoragePath
+	}
+	if cfg.Restore != nil {
+		configData.FileWork.restore = *cfg.Restore
+	}
+	if cfg.DatabaseDSN != nil {
+		configData.DatabaseAddress.connectionString = *cfg.DatabaseDSN
+	}
+	if cfg.SecretKey != nil {
+		configData.secretKey = *cfg.SecretKey
+	}
+	if cfg.AuditFile != nil {
+		configData.AuditFile = *cfg.AuditFile
+	}
+	if cfg.AuditURL != nil {
+		configData.AuditUrl = *cfg.AuditURL
+	}
+	if cfg.CryptoKey != nil {
+		configData.CryptoKey = *cfg.CryptoKey
+	}
+}
 
-	flag.Var(&configData.Address, "a", "server address (host:port)")
-	flag.Int64Var(&configData.FileWork.storeInterval, "i", 2, "store interval in seconds")
-	flag.StringVar(&configData.FileWork.fileStoragePath, "f", "", "path to store data")
-	flag.BoolVar(&configData.FileWork.restore, "r", false, "true for restore, false for not")
-	flag.StringVar(&configData.DatabaseAddress.connectionString, "d", "", "connection string for database")
-	flag.StringVar(&configData.secretKey, "k", "", "secret key for signing data")
-	flag.StringVar(&configData.AuditUrl, "audit-url", "", "path to audit log url")
-	flag.StringVar(&configData.AuditFile, "audit-file", "", "path to audit log file")
-	flag.StringVar(&configData.CryptoKey, "crypto-key", configData.CryptoKey, "key for encrypting data")
+func loadJSONConfig(path string) error {
+	if path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var cfg JSONConfig
+
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return err
+	}
+	applyJSONConfig(cfg)
+	return nil
+}
+
+func parseFlags() {
+	var jsonFilePath string
+	addressFlag := configData.Address
+	storeIntervalFlag := configData.FileWork.storeInterval
+	fileStoragePathFlag := configData.FileWork.fileStoragePath
+	restoreFlag := configData.FileWork.restore
+	databaseDSNFlag := configData.DatabaseAddress.connectionString
+	secretKeyFlag := configData.secretKey
+	auditURLFlag := configData.AuditUrl
+	auditFileFlag := configData.AuditFile
+	cryptoKeyFlag := configData.CryptoKey
+
+	flag.StringVar(&jsonFilePath, "c", "", "path to JSON config")
+	flag.StringVar(&jsonFilePath, "config", "", "path to JSON config")
+
+	flag.Var(&addressFlag, "a", "server address (host:port)")
+	flag.Int64Var(&storeIntervalFlag, "i", configData.FileWork.storeInterval, "store interval in seconds")
+	flag.StringVar(&fileStoragePathFlag, "f", configData.FileWork.fileStoragePath, "path to store data")
+	flag.BoolVar(&restoreFlag, "r", configData.FileWork.restore, "true for restore, false for not")
+	flag.StringVar(&databaseDSNFlag, "d", configData.DatabaseAddress.connectionString, "connection string for database")
+	flag.StringVar(&secretKeyFlag, "k", configData.secretKey, "secret key for signing data")
+	flag.StringVar(&auditURLFlag, "audit-url", configData.AuditUrl, "path to audit log url")
+	flag.StringVar(&auditFileFlag, "audit-file", configData.AuditFile, "path to audit log file")
+	flag.StringVar(&cryptoKeyFlag, "crypto-key", configData.CryptoKey, "key for encrypting data")
 	flag.Parse()
+
+
+	if err := loadJSONConfig(jsonFilePath); err != nil {
+		fmt.Printf("failed to load config file %q: %v\n", jsonFilePath, err)
+	}
+
+	flag.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "a":
+			configData.Address = addressFlag
+		case "i":
+			configData.FileWork.storeInterval = storeIntervalFlag
+		case "f":
+			configData.FileWork.fileStoragePath = fileStoragePathFlag
+		case "r":
+			configData.FileWork.restore = restoreFlag
+		case "d":
+			configData.DatabaseAddress.connectionString = databaseDSNFlag
+		case "k":
+			configData.secretKey = secretKeyFlag
+		case "audit-url":
+			configData.AuditUrl = auditURLFlag
+		case "audit-file":
+			configData.AuditFile = auditFileFlag
+		case "crypto-key":
+			configData.CryptoKey = cryptoKeyFlag
+		}
+	})
 
 	if v, ok := os.LookupEnv("ADDRESS"); ok && v != "" {
 		_ = configData.Address.Set(v)
