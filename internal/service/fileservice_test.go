@@ -77,3 +77,27 @@ func TestFileServiceGetData(t *testing.T) {
 		})
 	}
 }
+
+func TestFileServiceSaveDataAfterExitWritesMemoryData(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fileWorker := mocks.NewMockFileWorker(ctrl)
+	memStorage := mocks.NewMockStorage(ctrl)
+	metrics := []models.Metrics{{
+		ID:    "cpu",
+		MType: models.Gauge,
+		Value: float64Ptr(0.7),
+	}}
+
+	memStorage.EXPECT().GetAll().Return(metrics)
+	fileWorker.EXPECT().WriteData(metrics).Return(nil)
+
+	svc := NewFileService(
+		repository.NewFileRepo(fileWorker),
+		repository.NewMemRepo(memStorage),
+		1,
+	)
+
+	require.NoError(t, svc.SaveDataAfterExit(context.Background()))
+}
