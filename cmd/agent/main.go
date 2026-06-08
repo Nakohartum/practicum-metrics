@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os/signal"
-	"syscall"
 
 	"github.com/Nakohartum/practicum-metrics/internal/agent"
 )
@@ -21,9 +19,7 @@ func main() {
 	fmt.Printf("Build commit: %s\n", buildValue(buildCommit))
 	parseFlags()
 	var a = agent.NewAgentMetrics(int(configData.pollInterval), int(configData.reportInterval), int(configData.rateLimit), configData.secretKey, configData.CryptoKey)
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	defer stop()
-	a.Run(ctx, configData.address.String())
+	a.Run(context.Background(), configData.address.String())
 }
 
 func buildValue(v string) string {

@@ -111,9 +111,13 @@ func (fs *FileService) SaveDataAfterExit(ctx context.Context) error {
 		return err
 	}
 
-	data := fs.memRepo.GetAll()
-	err := fs.WriteData(data)
+	data, err := fs.repo.ReadData()
 	if err != nil {
+		return err
+	}
+	err = fs.WriteData(data)
+	if err != nil {
+		log.Fatalf("Error writing data: %v", err)
 		return err
 	}
 	return nil
