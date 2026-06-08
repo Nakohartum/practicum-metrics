@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -95,6 +96,48 @@ func TestSendSnapshot(t *testing.T) {
 	assert.Equal(t, models.Gauge, got[0].MType)
 	assert.Equal(t, "PollCount", got[1].ID)
 	assert.Equal(t, models.Counter, got[1].MType)
+}
+
+func TestRunSendsLastSnapshotAfterContextCancel(t *testing.T) {
+	got := make(chan []models.Metrics, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		if r.Header.Get("Content-Encoding") == "gzip" {
+			reader, err := gzip.NewReader(bytes.NewReader(body))
+			require.NoError(t, err)
+			body, err = io.ReadAll(reader)
+			require.NoError(t, err)
+			require.NoError(t, reader.Close())
+		}
+
+		var metrics []models.Metrics
+		require.NoError(t, json.Unmarshal(body, &metrics))
+		got <- metrics
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	agent := NewAgentMetrics(1, 1, 1, "", "")
+	agent.lastSnapshot = snapshot{
+		Metrics: []models.Metrics{
+			newGaugeMetric("Alloc", 1.5),
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	agent.Run(ctx, server.URL)
+
+	select {
+	case metrics := <-got:
+		require.Len(t, metrics, 1)
+		assert.Equal(t, "Alloc", metrics[0].ID)
+	case <-time.After(time.Second):
+		t.Fatal("agent did not send last snapshot before stopping")
+	}
 }
 
 func TestSendDataWithDeadline(t *testing.T) {

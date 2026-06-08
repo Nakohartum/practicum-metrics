@@ -45,7 +45,7 @@ func run() error {
 	memRepo := setupMemRepo()
 	var service service.Service = setupMemService(memRepo)
 
-	appCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	appCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer stop()
 
 	auditor := setupAuditor()
@@ -74,14 +74,17 @@ func run() error {
 		return err
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelShutdown()
 
-	if err := service.SaveDataAfterExit(shutdownCtx); err != nil {
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		return err
 	}
 
-	if err := server.Shutdown(shutdownCtx); err != nil {
+	saveCtx, cancelSave := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelSave()
+
+	if err := service.SaveDataAfterExit(saveCtx); err != nil {
 		return err
 	}
 

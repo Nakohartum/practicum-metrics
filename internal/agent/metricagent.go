@@ -168,7 +168,6 @@ func (mA *MetricsAgent) sendWorker(ctx context.Context, host string) {
 func (mA *MetricsAgent) reportLoop(ctx context.Context) {
 	ticker := time.NewTicker(mA.ReportInterval)
 	defer ticker.Stop()
-	defer close(mA.snapshots)
 
 	for {
 		select {
@@ -275,34 +274,50 @@ func (mA *MetricsAgent) sendSnapshot(s snapshot, path string) {
 
 // Run starts collection and reporting loops until the context is canceled.
 func (mA *MetricsAgent) Run(ctx context.Context, host string) {
-	var wg sync.WaitGroup
-	mA.snapshots = make(chan snapshot, mA.rateLimit)
+	var producers sync.WaitGroup
+	var workers sync.WaitGroup
+	workerCount := mA.rateLimit
+	if workerCount < 1 {
+		workerCount = 1
+	}
+	mA.snapshots = make(chan snapshot, workerCount)
 
 	if mA.sleep == nil {
 		mA.sleep = time.Sleep
 	}
-	wg.Add(1)
+	producers.Add(1)
 
 	go func() {
-		defer wg.Done()
+		defer producers.Done()
 		mA.collectLoop(ctx)
 	}()
 
-	wg.Add(1)
+	producers.Add(1)
 	go func() {
-		defer wg.Done()
+		defer producers.Done()
 		mA.reportLoop(ctx)
 	}()
 
-	for i := 0; i < mA.rateLimit; i++ {
-		wg.Add(1)
+	for i := 0; i < workerCount; i++ {
+		workers.Add(1)
 		go func() {
-			defer wg.Done()
-			mA.sendWorker(ctx, host)
+			defer workers.Done()
+			mA.sendWorker(context.Background(), host)
 		}()
 	}
 
-	wg.Wait()
+	<-ctx.Done()
+	producers.Wait()
+
+	mA.mu.RLock()
+	snap := mA.lastSnapshot
+	mA.mu.RUnlock()
+	if len(snap.Metrics) != 0 {
+		mA.snapshots <- snap
+	}
+
+	close(mA.snapshots)
+	workers.Wait()
 }
 
 func compressData(data []byte) ([]byte, error) {
