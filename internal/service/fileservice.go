@@ -18,11 +18,11 @@ type FileService struct {
 }
 
 // NewFileService creates a FileService with a save interval in seconds.
-func NewFileService(r *repository.FileRepo, mr *repository.MemRepo, storeInterval int) *FileService {
+func NewFileService(r *repository.FileRepo, mr *repository.MemRepo, storeInterval time.Duration) *FileService {
 	return &FileService{
 		repo:          r,
 		memRepo:       mr,
-		storeInterval: time.Duration(storeInterval) * time.Second,
+		storeInterval: storeInterval,
 	}
 }
 

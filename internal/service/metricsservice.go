@@ -16,10 +16,10 @@ type MetricsService struct {
 }
 
 // NewMetricsService creates a MetricsService with a save interval in seconds.
-func NewMetricsService(r *repository.MemRepo, storeInterval int) *MetricsService {
+func NewMetricsService(r *repository.MemRepo, storeInterval time.Duration) *MetricsService {
 	return &MetricsService{
 		repo:          r,
-		storeInterval: time.Duration(storeInterval) * time.Second,
+		storeInterval: storeInterval,
 	}
 }
 

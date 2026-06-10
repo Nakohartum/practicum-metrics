@@ -21,8 +21,9 @@ import (
 )
 
 func TestNewAgentMetrics(t *testing.T) {
-	agent := NewAgentMetrics(1, 2, 3, "secret", "")
+	agent, err := NewAgentMetrics(time.Second, 2*time.Second, 3, "secret", "")
 
+	require.NoError(t, err)
 	require.NotNil(t, agent)
 	assert.Equal(t, time.Second, agent.PollInterval)
 	assert.Equal(t, 2*time.Second, agent.ReportInterval)
@@ -32,8 +33,15 @@ func TestNewAgentMetrics(t *testing.T) {
 	assert.Nil(t, agent.publicKey)
 }
 
+func TestNewAgentMetricsReturnsPublicKeyError(t *testing.T) {
+	_, err := NewAgentMetrics(time.Second, time.Second, 1, "", "missing.pem")
+
+	require.Error(t, err)
+}
+
 func TestCollectSnapshot(t *testing.T) {
-	agent := NewAgentMetrics(1, 1, 1, "", "")
+	agent, err := NewAgentMetrics(time.Second, time.Second, 1, "", "")
+	require.NoError(t, err)
 
 	got := agent.collectSnapshot()
 
@@ -80,7 +88,8 @@ func TestSendSnapshot(t *testing.T) {
 	}))
 	defer server.Close()
 
-	agent := NewAgentMetrics(1, 1, 1, "", "")
+	agent, err := NewAgentMetrics(time.Second, time.Second, 1, "", "")
+	require.NoError(t, err)
 	snap := snapshot{
 		Metrics: []models.Metrics{
 			newGaugeMetric("Alloc", 1.5),
@@ -88,7 +97,7 @@ func TestSendSnapshot(t *testing.T) {
 		},
 	}
 
-	agent.sendSnapshot(snap, server.URL)
+	require.NoError(t, agent.sendSnapshot(context.Background(), snap, server.URL))
 
 	assert.Equal(t, 1, callCount)
 	require.Len(t, got, 2)
@@ -119,7 +128,8 @@ func TestRunSendsLastSnapshotAfterContextCancel(t *testing.T) {
 	}))
 	defer server.Close()
 
-	agent := NewAgentMetrics(1, 1, 1, "", "")
+	agent, err := NewAgentMetrics(time.Second, time.Second, 1, "", "")
+	require.NoError(t, err)
 	agent.lastSnapshot = snapshot{
 		Metrics: []models.Metrics{
 			newGaugeMetric("Alloc", 1.5),
@@ -129,7 +139,7 @@ func TestRunSendsLastSnapshotAfterContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	agent.Run(ctx, server.URL)
+	require.NoError(t, agent.Run(ctx, server.URL))
 
 	select {
 	case metrics := <-got:
@@ -181,8 +191,9 @@ func TestSendDataWithDeadline(t *testing.T) {
 			}))
 			defer server.Close()
 
-			agent := NewAgentMetrics(1, 1, 1, tt.key, "")
-			err := agent.sendDataWithDeadline([]byte(`{"id":"hits"}`), server.URL, time.Second)
+			agent, err := NewAgentMetrics(time.Second, time.Second, 1, tt.key, "")
+			require.NoError(t, err)
+			err = agent.sendDataWithDeadline(context.Background(), []byte(`{"id":"hits"}`), server.URL, time.Second)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -199,17 +210,17 @@ func TestSendDataWithDeadlineEncrypted(t *testing.T) {
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
+		body, readErr := io.ReadAll(r.Body)
+		require.NoError(t, readErr)
 
-		body, err = cryptoutil.Decrypt(body, privateKey)
-		require.NoError(t, err)
+		body, decryptErr := cryptoutil.Decrypt(body, privateKey)
+		require.NoError(t, decryptErr)
 
 		require.Equal(t, "gzip", r.Header.Get("Content-Encoding"))
-		reader, err := gzip.NewReader(bytes.NewReader(body))
-		require.NoError(t, err)
-		decoded, err := io.ReadAll(reader)
-		require.NoError(t, err)
+		reader, gzipErr := gzip.NewReader(bytes.NewReader(body))
+		require.NoError(t, gzipErr)
+		decoded, readErr := io.ReadAll(reader)
+		require.NoError(t, readErr)
 		require.NoError(t, reader.Close())
 		assert.Equal(t, `{"id":"hits"}`, string(decoded))
 
@@ -217,10 +228,11 @@ func TestSendDataWithDeadlineEncrypted(t *testing.T) {
 	}))
 	defer server.Close()
 
-	agent := NewAgentMetrics(1, 1, 1, "", "")
+	agent, err := NewAgentMetrics(time.Second, time.Second, 1, "", "")
+	require.NoError(t, err)
 	agent.publicKey = &privateKey.PublicKey
 
-	err = agent.sendDataWithDeadline([]byte(`{"id":"hits"}`), server.URL, time.Second)
+	err = agent.sendDataWithDeadline(context.Background(), []byte(`{"id":"hits"}`), server.URL, time.Second)
 	require.NoError(t, err)
 }
 

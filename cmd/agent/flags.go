@@ -7,14 +7,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config contains agent runtime settings parsed from flags and environment.
 
 type JSONConfig struct {
 	Address        *string `json:"address"`
-	ReportInterval *int64  `json:"report_interval"`
-	PollInterval   *int64  `json:"poll_interval"`
+	ReportInterval *string `json:"report_interval"`
+	PollInterval   *string `json:"poll_interval"`
 	SecretKey      *string `json:"secret_key"`
 	RateLimit      *int64  `json:"rate_limit"`
 	CryptoKey      *string `json:"crypto_key"`
@@ -22,11 +23,11 @@ type JSONConfig struct {
 
 type Config struct {
 	address        Address
-	reportInterval int64  `env:"REPORT_INTERVAL"`
-	pollInterval   int64  `env:"POLL_INTERVAL"`
+	reportInterval time.Duration
+	pollInterval   time.Duration
 	secretKey      string `env:"SECRET_KEY"`
 	rateLimit      int64  `env:"RATE_LIMIT"`
-	CryptoKey      string `env:"CRYPTO_KEY"`
+	cryptoKey      string `env:"CRYPTO_KEY"`
 }
 
 // Address stores the metrics server address.
@@ -64,20 +65,31 @@ func (a *Address) Set(value string) error {
 
 var configData = Config{
 	address:        Address{host: "localhost:8080"},
-	reportInterval: 10,
-	pollInterval:   2,
+	reportInterval: 10 * time.Second,
+	pollInterval:   2 * time.Second,
 	rateLimit:      1024,
 }
 
-func applyJSONConfig(cfg JSONConfig) {
+func applyJSONConfig(cfg JSONConfig) error {
 	if cfg.Address != nil {
-		_ = configData.address.Set(*cfg.Address)
+		if err := configData.address.Set(*cfg.Address); err != nil {
+			return fmt.Errorf("set address: %w", err)
+		}
 	}
+
 	if cfg.ReportInterval != nil {
-		configData.reportInterval = *cfg.ReportInterval
+		duration, err := time.ParseDuration(*cfg.ReportInterval)
+		if err != nil {
+			return fmt.Errorf("parse report_interval: %w", err)
+		}
+		configData.reportInterval = duration
 	}
 	if cfg.PollInterval != nil {
-		configData.pollInterval = *cfg.PollInterval
+		duration, err := time.ParseDuration(*cfg.PollInterval)
+		if err != nil {
+			return fmt.Errorf("parse poll_interval: %w", err)
+		}
+		configData.pollInterval = duration
 	}
 	if cfg.SecretKey != nil {
 		configData.secretKey = *cfg.SecretKey
@@ -86,8 +98,9 @@ func applyJSONConfig(cfg JSONConfig) {
 		configData.rateLimit = *cfg.RateLimit
 	}
 	if cfg.CryptoKey != nil {
-		configData.CryptoKey = *cfg.CryptoKey
+		configData.cryptoKey = *cfg.CryptoKey
 	}
+	return nil
 }
 
 func loadJSONConfig(path string) error {
@@ -105,32 +118,31 @@ func loadJSONConfig(path string) error {
 		return err
 	}
 
-	applyJSONConfig(cfg)
-	return nil
+	return applyJSONConfig(cfg)
 }
 
-func parseFlags() {
+func parseFlags() error {
 	var configPath string
 	addressFlag := configData.address
-	reportIntervalFlag := configData.reportInterval
-	pollIntervalFlag := configData.pollInterval
+	reportIntervalFlag := int64(configData.reportInterval / time.Second)
+	pollIntervalFlag := int64(configData.pollInterval / time.Second)
 	secretKeyFlag := configData.secretKey
 	rateLimitFlag := configData.rateLimit
-	cryptoKeyFlag := configData.CryptoKey
+	cryptoKeyFlag := configData.cryptoKey
 
 	flag.StringVar(&configPath, "c", "", "path to JSON config")
 	flag.StringVar(&configPath, "config", "", "path to JSON config")
 
 	flag.Var(&addressFlag, "a", "server address (host:port)")
-	flag.Int64Var(&reportIntervalFlag, "r", configData.reportInterval, "report interval")
-	flag.Int64Var(&pollIntervalFlag, "p", configData.pollInterval, "poll interval")
+	flag.Int64Var(&reportIntervalFlag, "r", reportIntervalFlag, "report interval in seconds")
+	flag.Int64Var(&pollIntervalFlag, "p", pollIntervalFlag, "poll interval in seconds")
 	flag.StringVar(&secretKeyFlag, "k", configData.secretKey, "secret key for signing data")
 	flag.Int64Var(&rateLimitFlag, "l", configData.rateLimit, "amount of workers")
-	flag.StringVar(&cryptoKeyFlag, "crypto-key", configData.CryptoKey, "key for encrypting data")
+	flag.StringVar(&cryptoKeyFlag, "crypto-key", configData.cryptoKey, "key for encrypting data")
 	flag.Parse()
 
 	if err := loadJSONConfig(configPath); err != nil {
-		fmt.Printf("failed to load config file %q: %v\n", configPath, err)
+		return fmt.Errorf("load config file %q: %w", configPath, err)
 	}
 
 	flag.Visit(func(f *flag.Flag) {
@@ -138,41 +150,50 @@ func parseFlags() {
 		case "a":
 			configData.address = addressFlag
 		case "r":
-			configData.reportInterval = reportIntervalFlag
+			configData.reportInterval = time.Duration(reportIntervalFlag) * time.Second
 		case "p":
-			configData.pollInterval = pollIntervalFlag
+			configData.pollInterval = time.Duration(pollIntervalFlag) * time.Second
 		case "k":
 			configData.secretKey = secretKeyFlag
 		case "l":
 			configData.rateLimit = rateLimitFlag
 		case "crypto-key":
-			configData.CryptoKey = cryptoKeyFlag
+			configData.cryptoKey = cryptoKeyFlag
 		}
 	})
 
 	if v, ok := os.LookupEnv("ADDRESS"); ok {
-		_ = configData.address.Set(v)
+		if err := configData.address.Set(v); err != nil {
+			return fmt.Errorf("set ADDRESS: %w", err)
+		}
 	}
 
 	if v, ok := os.LookupEnv("REPORT_INTERVAL"); ok {
-		if intVal, err := strconv.ParseInt(v, 10, 64); err == nil {
-			configData.reportInterval = intVal
+		intVal, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return fmt.Errorf("parse REPORT_INTERVAL: %w", err)
 		}
+		configData.reportInterval = time.Duration(intVal) * time.Second
 	}
 	if v, ok := os.LookupEnv("POLL_INTERVAL"); ok {
-		if intVal, err := strconv.ParseInt(v, 10, 64); err == nil {
-			configData.pollInterval = intVal
+		intVal, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return fmt.Errorf("parse POLL_INTERVAL: %w", err)
 		}
+		configData.pollInterval = time.Duration(intVal) * time.Second
 	}
 	if v, ok := os.LookupEnv("SECRET_KEY"); ok {
 		configData.secretKey = v
 	}
 	if v, ok := os.LookupEnv("RATE_LIMIT"); ok {
-		if intVal, err := strconv.ParseInt(v, 10, 64); err == nil {
-			configData.rateLimit = intVal
+		intVal, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return fmt.Errorf("parse RATE_LIMIT: %w", err)
 		}
+		configData.rateLimit = intVal
 	}
 	if v, ok := os.LookupEnv("CRYPTO_KEY"); ok {
-		configData.CryptoKey = v
+		configData.cryptoKey = v
 	}
+	return nil
 }

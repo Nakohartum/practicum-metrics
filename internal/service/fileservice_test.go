@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -62,7 +63,7 @@ func TestFileServiceGetData(t *testing.T) {
 			svc := NewFileService(
 				repository.NewFileRepo(fileWorker),
 				repository.NewMemRepo(memStorage),
-				1,
+				time.Second,
 			)
 
 			got, err := svc.GetData(context.Background(), tt.metricType, tt.key)
@@ -96,7 +97,7 @@ func TestFileServiceSaveDataAfterExitWritesMemoryData(t *testing.T) {
 	svc := NewFileService(
 		repository.NewFileRepo(fileWorker),
 		repository.NewMemRepo(memStorage),
-		1,
+		time.Second,
 	)
 
 	require.NoError(t, svc.SaveDataAfterExit(context.Background()))

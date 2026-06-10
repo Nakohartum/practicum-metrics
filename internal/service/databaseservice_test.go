@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -77,7 +78,7 @@ func TestDatabaseServiceSetData(t *testing.T) {
 			svc := NewDatabaseService(
 				repository.NewDatabaseRepository(adapter),
 				repository.NewMemRepo(memStorage),
-				1,
+				time.Second,
 			)
 
 			err := svc.SetData(context.Background(), tt.metricType, "metric", tt.value)
@@ -117,7 +118,7 @@ func TestDatabaseServicePing(t *testing.T) {
 			svc := NewDatabaseService(
 				repository.NewDatabaseRepository(adapter),
 				repository.NewMemRepo(memStorage),
-				1,
+				time.Second,
 			)
 
 			err := svc.Ping(context.Background())

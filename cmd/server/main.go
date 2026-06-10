@@ -40,7 +40,9 @@ func main() {
 }
 
 func run() error {
-	parseFlags()
+	if err := parseFlags(); err != nil {
+		return fmt.Errorf("initialize configuration: %w", err)
+	}
 
 	memRepo := setupMemRepo()
 	var service service.Service = setupMemService(memRepo)
@@ -58,7 +60,10 @@ func run() error {
 		service = setupDatabaseService(memRepo)
 	}
 
-	server := setupServer(service, appCtx, auditor)
+	server, err := setupServer(service, appCtx, auditor)
+	if err != nil {
+		return err
+	}
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -100,7 +105,7 @@ func setupMemRepo() *repository.MemRepo {
 }
 
 func setupMemService(repo *repository.MemRepo) *service.MetricsService {
-	service := service.NewMetricsService(repo, int(configData.FileWork.storeInterval))
+	service := service.NewMetricsService(repo, configData.FileWork.storeInterval)
 	return service
 }
 
@@ -114,7 +119,7 @@ func setupDatabaseService(memRepo *repository.MemRepo) *service.DatabaseService 
 		os.Exit(1)
 	}
 	repo := repository.NewDatabaseRepository(dbAdapter)
-	dbService := service.NewDatabaseService(repo, memRepo, int(configData.FileWork.storeInterval))
+	dbService := service.NewDatabaseService(repo, memRepo, configData.FileWork.storeInterval)
 	return dbService
 }
 
@@ -133,26 +138,35 @@ func setupFileService(memRepo *repository.MemRepo) *service.FileService {
 	}
 	fWorker := fConfig.NewFileManager(fReader, fWriter)
 	fRepo := repository.NewFileRepo(fWorker)
-	fService := service.NewFileService(fRepo, memRepo, int(configData.FileWork.storeInterval))
+	fService := service.NewFileService(fRepo, memRepo, configData.FileWork.storeInterval)
 	return fService
 }
 
-func setupRouter(service service.Service) *chi.Mux {
+func setupRouter(service service.Service) (*chi.Mux, error) {
 	router := chi.NewRouter()
 
 	router.Use(middleware.StripSlashes)
 	router.Use(handler.HashMiddleware(configData.secretKey))
-	router.Use(handler.DecryptMiddleware(configData.CryptoKey))
+	if configData.cryptoKey != "" {
+		decryptMiddleware, err := handler.DecryptMiddleware(configData.cryptoKey)
+		if err != nil {
+			return nil, fmt.Errorf("initialize decrypt middleware: %w", err)
+		}
+		router.Use(decryptMiddleware)
+	}
 	router.Use(handler.GetZippedDataMiddleware)
 	router.Use(handler.GiveZippedDataMiddleware)
 	if configData.FileWork.storeInterval == 0 {
 		router.Use(handler.SaveAfterPostMiddleware(service))
 	}
-	return router
+	return router, nil
 }
 
-func setupServer(service service.Service, appCtx context.Context, auditors ...*audit.Auditor) http.Server {
-	router := setupRouter(service)
+func setupServer(service service.Service, appCtx context.Context, auditors ...*audit.Auditor) (http.Server, error) {
+	router, err := setupRouter(service)
+	if err != nil {
+		return http.Server{}, err
+	}
 
 	metricsHandler := handler.NewMetricsHandler(service, auditors...)
 
@@ -191,7 +205,7 @@ func setupServer(service service.Service, appCtx context.Context, auditors ...*a
 	return http.Server{
 		Addr:    configData.Address.String(),
 		Handler: router,
-	}
+	}, nil
 }
 
 func setupAuditor() *audit.Auditor {

@@ -3,9 +3,9 @@ package handler
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -200,28 +200,14 @@ func HashMiddleware(key string) func(http.Handler) http.Handler {
 	}
 }
 
-func DecryptMiddleware(privateKeyPath string) func(http.Handler) http.Handler {
-	var privateKey *rsa.PrivateKey
-
-	if privateKeyPath != "" {
-		key, err := cryptoutil.LoadPrivateKey(privateKeyPath)
-		if err != nil {
-			return func(h http.Handler) http.Handler {
-				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					http.Error(w, "failed to load private key", http.StatusInternalServerError)
-				})
-			}
-		}
-		privateKey = key
+func DecryptMiddleware(privateKeyPath string) (func(http.Handler) http.Handler, error) {
+	privateKey, err := cryptoutil.LoadPrivateKey(privateKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("load private key: %w", err)
 	}
 
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if privateKey == nil {
-				h.ServeHTTP(w, r)
-				return
-			}
-
 			if r.Method != http.MethodPost {
 				h.ServeHTTP(w, r)
 				return
@@ -244,5 +230,5 @@ func DecryptMiddleware(privateKeyPath string) func(http.Handler) http.Handler {
 			r.Body = io.NopCloser(bytes.NewReader(decryptedBody))
 			h.ServeHTTP(w, r)
 		})
-	}
+	}, nil
 }
