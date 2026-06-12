@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -62,7 +63,7 @@ func TestFileServiceGetData(t *testing.T) {
 			svc := NewFileService(
 				repository.NewFileRepo(fileWorker),
 				repository.NewMemRepo(memStorage),
-				1,
+				time.Second,
 			)
 
 			got, err := svc.GetData(context.Background(), tt.metricType, tt.key)
@@ -76,4 +77,28 @@ func TestFileServiceGetData(t *testing.T) {
 			assert.Equal(t, tt.wantMetric, got)
 		})
 	}
+}
+
+func TestFileServiceSaveDataAfterExitWritesMemoryData(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fileWorker := mocks.NewMockFileWorker(ctrl)
+	memStorage := mocks.NewMockStorage(ctrl)
+	metrics := []models.Metrics{{
+		ID:    "cpu",
+		MType: models.Gauge,
+		Value: float64Ptr(0.7),
+	}}
+
+	memStorage.EXPECT().GetAll().Return(metrics)
+	fileWorker.EXPECT().WriteData(metrics).Return(nil)
+
+	svc := NewFileService(
+		repository.NewFileRepo(fileWorker),
+		repository.NewMemRepo(memStorage),
+		time.Second,
+	)
+
+	require.NoError(t, svc.SaveDataAfterExit(context.Background()))
 }

@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -19,7 +21,9 @@ import (
 	"github.com/go-resty/resty/v2"
 	cpu "github.com/shirou/gopsutil/v4/cpu"
 	memory "github.com/shirou/gopsutil/v4/mem"
+	"golang.org/x/sync/errgroup"
 
+	"github.com/Nakohartum/practicum-metrics/internal/cryptoutil"
 	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 )
@@ -33,23 +37,32 @@ type MetricsAgent struct {
 	client         *resty.Client
 	mu             sync.RWMutex
 	lastSnapshot   snapshot
-	sleep          func(time.Duration)
 	pollCount      int
 	rateLimit      int
+	publicKey      *rsa.PublicKey
 }
 
-// NewAgentMetrics creates a MetricsAgent with intervals in seconds.
-func NewAgentMetrics(pollInterval, reportInterval, rateLimit int, key string) *MetricsAgent {
+// NewAgentMetrics creates a MetricsAgent.
+func NewAgentMetrics(pollInterval, reportInterval time.Duration, rateLimit int, key string, cryptoKey string) (*MetricsAgent, error) {
+	var pubKey *rsa.PublicKey
+	if cryptoKey != "" {
+		var err error
+		pubKey, err = cryptoutil.LoadPublicKey(cryptoKey)
+		if err != nil {
+			return nil, fmt.Errorf("load public key: %w", err)
+		}
+	}
 	var agent = MetricsAgent{
-		PollInterval:   time.Duration(pollInterval * int(time.Second)),
-		ReportInterval: time.Duration(reportInterval * int(time.Second)),
+		PollInterval:   pollInterval,
+		ReportInterval: reportInterval,
 		key:            key,
 		client:         resty.New().SetHeader("Content-Type", "application/json"),
 		pollCount:      0,
 		rateLimit:      rateLimit,
+		publicKey:      pubKey,
 	}
 	internalLogger.AttachLoggingToRequest(agent.client)
-	return &agent
+	return &agent, nil
 }
 func (mA *MetricsAgent) collectSnapshot() snapshot {
 	var mem runtime.MemStats
@@ -138,16 +151,18 @@ func (mA *MetricsAgent) collectLoop(ctx context.Context) {
 	}
 }
 
-func (mA *MetricsAgent) sendWorker(ctx context.Context, host string) {
+func (mA *MetricsAgent) sendWorker(ctx context.Context, host string) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case snap, ok := <-mA.snapshots:
 			if !ok {
-				return
+				return nil
 			}
-			mA.sendSnapshot(snap, host)
+			if err := mA.sendSnapshot(ctx, snap, host); err != nil {
+				return err
+			}
 		}
 	}
 }
@@ -155,7 +170,6 @@ func (mA *MetricsAgent) sendWorker(ctx context.Context, host string) {
 func (mA *MetricsAgent) reportLoop(ctx context.Context) {
 	ticker := time.NewTicker(mA.ReportInterval)
 	defer ticker.Stop()
-	defer close(mA.snapshots)
 
 	for {
 		select {
@@ -179,29 +193,45 @@ func (mA *MetricsAgent) reportLoop(ctx context.Context) {
 	}
 }
 
-func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, timeoutDuration time.Duration) error {
+func (mA *MetricsAgent) sendDataWithDeadline(ctx context.Context, v metricsBytes, endpoint string, timeoutDuration time.Duration) error {
 	compressedData, err := compressData(v)
 	if err != nil {
 		log.Println(err)
 	}
-	hash := makeHash(compressedData, mA.key)
+	body := compressedData
+	if mA.publicKey != nil {
+		body, err = cryptoutil.Encrypt(body, mA.publicKey)
+		if err != nil {
+			return err
+		}
+	}
+	hash := makeHash(body, mA.key)
 	req := mA.client.
 		SetTimeout(timeoutDuration).
 		R().
+		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
-		SetBody(compressedData)
+		SetBody(body)
 	if hash != "" {
 		req.SetHeader("HashSHA256", hash)
 	}
 	resp, err := req.Post(endpoint)
 	if err != nil || resp.StatusCode() >= http.StatusBadRequest {
-		hash = makeHash(v, mA.key)
+		body := v
+		if mA.publicKey != nil {
+			body, err = cryptoutil.Encrypt(body, mA.publicKey)
+			if err != nil {
+				return err
+			}
+		}
+		hash = makeHash(body, mA.key)
 		req := mA.client.
 			SetTimeout(timeoutDuration).
 			R().
+			SetContext(ctx).
 			SetHeader("Content-Type", "application/json").
-			SetBody(v)
+			SetBody(body)
 
 		if hash != "" {
 			req.SetHeader("HashSHA256", hash)
@@ -214,19 +244,19 @@ func (mA *MetricsAgent) sendDataWithDeadline(v metricsBytes, endpoint string, ti
 	return nil
 }
 
-func (mA *MetricsAgent) sendSnapshot(s snapshot, path string) {
+func (mA *MetricsAgent) sendSnapshot(ctx context.Context, s snapshot, path string) error {
 	endpoint := path + "/updates"
 	attempts := 3
 	timeoutDuration := 1
 
 	jsonData, err := json.Marshal(s.Metrics)
 	if err != nil {
-		log.Println(err)
-		return
+		return fmt.Errorf("marshal snapshot: %w", err)
 	}
 
 	for attempt := 0; attempt < attempts; attempt++ {
 		err := mA.sendDataWithDeadline(
+			ctx,
 			jsonData,
 			endpoint,
 			time.Duration(timeoutDuration)*time.Second,
@@ -234,48 +264,73 @@ func (mA *MetricsAgent) sendSnapshot(s snapshot, path string) {
 
 		var opError *net.OpError
 		if err != nil && (errors.Is(err, context.DeadlineExceeded) || errors.As(err, &opError)) {
-			time.Sleep(time.Duration(timeoutDuration) * time.Second)
+			timer := time.NewTimer(time.Duration(timeoutDuration) * time.Second)
+			select {
+			case <-ctx.Done():
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				return ctx.Err()
+			case <-timer.C:
+			}
 			timeoutDuration += 2
 			continue
 		}
 
 		if err != nil {
-			log.Println(err)
+			return err
 		}
-		break
+		return nil
 	}
+	return nil
 }
 
 // Run starts collection and reporting loops until the context is canceled.
-func (mA *MetricsAgent) Run(ctx context.Context, host string) {
-	var wg sync.WaitGroup
-	mA.snapshots = make(chan snapshot, mA.rateLimit)
-
-	if mA.sleep == nil {
-		mA.sleep = time.Sleep
+func (mA *MetricsAgent) Run(ctx context.Context, host string) error {
+	workerCount := mA.rateLimit
+	if workerCount < 1 {
+		workerCount = 1
 	}
-	wg.Add(1)
+	mA.snapshots = make(chan snapshot, workerCount)
 
-	go func() {
-		defer wg.Done()
-		mA.collectLoop(ctx)
-	}()
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		mA.collectLoop(groupCtx)
+		return nil
+	})
+	group.Go(func() error {
+		mA.reportLoop(groupCtx)
+		return nil
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		mA.reportLoop(ctx)
-	}()
-
-	for i := 0; i < mA.rateLimit; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			mA.sendWorker(ctx, host)
-		}()
+	for i := 0; i < workerCount; i++ {
+		group.Go(func() error {
+			return mA.sendWorker(groupCtx, host)
+		})
 	}
 
-	wg.Wait()
+	<-groupCtx.Done()
+	groupErr := group.Wait()
+
+	mA.mu.RLock()
+	snap := mA.lastSnapshot
+	mA.mu.RUnlock()
+	if len(snap.Metrics) != 0 {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := mA.sendSnapshot(shutdownCtx, snap, host); err != nil {
+			return fmt.Errorf("send final snapshot: %w", err)
+		}
+	}
+
+	close(mA.snapshots)
+	if groupErr != nil && !errors.Is(groupErr, context.Canceled) {
+		return groupErr
+	}
+	return nil
 }
 
 func compressData(data []byte) ([]byte, error) {

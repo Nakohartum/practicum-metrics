@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -65,7 +66,7 @@ func TestMetricsServiceGetData(t *testing.T) {
 				tt.mock(storage)
 			}
 
-			svc := NewMetricsService(repository.NewMemRepo(storage), 1)
+			svc := NewMetricsService(repository.NewMemRepo(storage), time.Second)
 
 			got, err := svc.GetData(context.Background(), tt.metricType, tt.key)
 			if tt.wantErr != nil {
@@ -117,7 +118,7 @@ func TestMetricsServiceSetDataUsingMetrics(t *testing.T) {
 				tt.mock(storage)
 			}
 
-			svc := NewMetricsService(repository.NewMemRepo(storage), 1)
+			svc := NewMetricsService(repository.NewMemRepo(storage), time.Second)
 			err := svc.SetDataUsingMetrics(context.Background(), tt.metrics)
 
 			if tt.wantErr != nil {

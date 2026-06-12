@@ -18,11 +18,11 @@ type FileService struct {
 }
 
 // NewFileService creates a FileService with a save interval in seconds.
-func NewFileService(r *repository.FileRepo, mr *repository.MemRepo, storeInterval int) *FileService {
+func NewFileService(r *repository.FileRepo, mr *repository.MemRepo, storeInterval time.Duration) *FileService {
 	return &FileService{
 		repo:          r,
 		memRepo:       mr,
-		storeInterval: time.Duration(storeInterval) * time.Second,
+		storeInterval: storeInterval,
 	}
 }
 
@@ -111,13 +111,9 @@ func (fs *FileService) SaveDataAfterExit(ctx context.Context) error {
 		return err
 	}
 
-	data, err := fs.repo.ReadData()
+	data := fs.memRepo.GetAll()
+	err := fs.WriteData(data)
 	if err != nil {
-		return err
-	}
-	err = fs.WriteData(data)
-	if err != nil {
-		log.Fatalf("Error writing data: %v", err)
 		return err
 	}
 	return nil

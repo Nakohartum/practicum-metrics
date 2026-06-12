@@ -5,11 +5,13 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
 
+	"github.com/Nakohartum/practicum-metrics/internal/cryptoutil"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
 )
 
@@ -196,4 +198,37 @@ func HashMiddleware(key string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func DecryptMiddleware(privateKeyPath string) (func(http.Handler) http.Handler, error) {
+	privateKey, err := cryptoutil.LoadPrivateKey(privateKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("load private key: %w", err)
+	}
+
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				h.ServeHTTP(w, r)
+				return
+			}
+
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				writeJSONError(w, "failed to read body", http.StatusBadRequest)
+				return
+			}
+			defer r.Body.Close()
+
+			decryptedBody, err := cryptoutil.Decrypt(body, privateKey)
+
+			if err != nil {
+				writeJSONError(w, "failed to decrypt body", http.StatusBadRequest)
+				return
+			}
+
+			r.Body = io.NopCloser(bytes.NewReader(decryptedBody))
+			h.ServeHTTP(w, r)
+		})
+	}, nil
 }

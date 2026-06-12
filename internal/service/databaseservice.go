@@ -18,11 +18,11 @@ type DatabaseService struct {
 }
 
 // NewDatabaseService creates a DatabaseService with a save interval in seconds.
-func NewDatabaseService(repo *repository.DatabaseRepository, mr *repository.MemRepo, storeInterval int) *DatabaseService {
+func NewDatabaseService(repo *repository.DatabaseRepository, mr *repository.MemRepo, storeInterval time.Duration) *DatabaseService {
 	return &DatabaseService{
 		repo:          repo,
 		memRepo:       mr,
-		storeInterval: time.Duration(storeInterval) * time.Second,
+		storeInterval: storeInterval,
 	}
 }
 

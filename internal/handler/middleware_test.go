@@ -3,17 +3,24 @@ package handler
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
+	"encoding/pem"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Nakohartum/practicum-metrics/internal/cryptoutil"
 	"github.com/Nakohartum/practicum-metrics/internal/mocks"
 )
 
@@ -68,8 +75,8 @@ func TestGetZippedDataMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				body, err := io.ReadAll(r.Body)
-				require.NoError(t, err)
+				body, readErr := io.ReadAll(r.Body)
+				require.NoError(t, readErr)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write(body)
 			})
@@ -236,6 +243,57 @@ func TestHashMiddleware(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDecryptMiddleware(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	privateKeyPath := filepath.Join(t.TempDir(), "private.pem")
+	privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
+	err = os.WriteFile(privateKeyPath, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: privateKeyBytes}), 0600)
+	require.NoError(t, err)
+
+	encrypted, err := cryptoutil.Encrypt([]byte("payload"), &privateKey.PublicKey)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		keyPath    string
+		method     string
+		body       []byte
+		wantStatus int
+		wantBody   string
+	}{
+		{name: "decrypts post body", keyPath: privateKeyPath, method: http.MethodPost, body: encrypted, wantStatus: http.StatusOK, wantBody: "payload"},
+		{name: "passes through non post request", keyPath: privateKeyPath, method: http.MethodGet, body: []byte("plain"), wantStatus: http.StatusOK, wantBody: "plain"},
+		{name: "returns bad request for invalid encrypted body", keyPath: privateKeyPath, method: http.MethodPost, body: []byte("bad"), wantStatus: http.StatusBadRequest},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				require.NoError(t, err)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(body)
+			})
+
+			req := httptest.NewRequest(tt.method, "/", bytes.NewReader(tt.body))
+			rr := httptest.NewRecorder()
+
+			middleware, middlewareErr := DecryptMiddleware(tt.keyPath)
+			require.NoError(t, middlewareErr)
+			middleware(next).ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.wantStatus, rr.Code)
+			if tt.wantBody != "" {
+				assert.Equal(t, tt.wantBody, rr.Body.String())
+			}
+		})
+	}
+
+	_, err = DecryptMiddleware(filepath.Join(t.TempDir(), "missing.pem"))
+	require.Error(t, err)
 }
 
 func calculateHash(body, key string) string {
