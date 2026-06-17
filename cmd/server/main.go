@@ -154,6 +154,9 @@ func setupRouter(service service.Service) (*chi.Mux, error) {
 		}
 		router.Use(decryptMiddleware)
 	}
+	if configData.TrustedSubnet != "" {
+		router.Use(handler.TrustedSubnetMiddleware(configData.TrustedSubnet))
+	}
 	router.Use(handler.GetZippedDataMiddleware)
 	router.Use(handler.GiveZippedDataMiddleware)
 	if configData.FileWork.storeInterval == 0 {
