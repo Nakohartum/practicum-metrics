@@ -52,11 +52,17 @@ func NewAgentMetrics(pollInterval, reportInterval time.Duration, rateLimit int, 
 			return nil, fmt.Errorf("load public key: %w", err)
 		}
 	}
+	agentIp := getAgentIP();
+	client := resty.New().SetHeader("Content-Type", "application/json").SetHeader("X-Real-IP", agentIp)
+	if agentIP := getAgentIP(); agentIP != "" {
+		client.SetHeader("X-Real-IP", agentIP)
+	}
+
 	var agent = MetricsAgent{
 		PollInterval:   pollInterval,
 		ReportInterval: reportInterval,
 		key:            key,
-		client:         resty.New().SetHeader("Content-Type", "application/json"),
+		client:         client,
 		pollCount:      0,
 		rateLimit:      rateLimit,
 		publicKey:      pubKey,
@@ -64,6 +70,30 @@ func NewAgentMetrics(pollInterval, reportInterval time.Duration, rateLimit int, 
 	internalLogger.AttachLoggingToRequest(agent.client)
 	return &agent, nil
 }
+
+func getAgentIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+
+		ip := ipNet.IP.To4()
+		if ip == nil || ip.IsLoopback() {
+			continue
+		}
+
+		return ip.String()
+	}
+
+	return ""
+}
+
 func (mA *MetricsAgent) collectSnapshot() snapshot {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
