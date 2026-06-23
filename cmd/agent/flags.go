@@ -14,6 +14,7 @@ import (
 
 type JSONConfig struct {
 	Address        *string `json:"address"`
+	GRPCAddress    *string `json:"grpc_address"`
 	ReportInterval *string `json:"report_interval"`
 	PollInterval   *string `json:"poll_interval"`
 	SecretKey      *string `json:"secret_key"`
@@ -23,6 +24,7 @@ type JSONConfig struct {
 
 type Config struct {
 	address        Address
+	grpcAddress    string `env:"GRPC_ADDRESS"`
 	reportInterval time.Duration
 	pollInterval   time.Duration
 	secretKey      string `env:"SECRET_KEY"`
@@ -75,6 +77,9 @@ func applyJSONConfig(cfg JSONConfig) error {
 		if err := configData.address.Set(*cfg.Address); err != nil {
 			return fmt.Errorf("set address: %w", err)
 		}
+	}
+	if cfg.GRPCAddress != nil {
+		configData.grpcAddress = *cfg.GRPCAddress
 	}
 
 	if cfg.ReportInterval != nil {
@@ -129,6 +134,7 @@ func parseFlags() error {
 	secretKeyFlag := configData.secretKey
 	rateLimitFlag := configData.rateLimit
 	cryptoKeyFlag := configData.cryptoKey
+	grpcAddressFlag := configData.grpcAddress
 
 	flag.StringVar(&configPath, "c", "", "path to JSON config")
 	flag.StringVar(&configPath, "config", "", "path to JSON config")
@@ -139,6 +145,7 @@ func parseFlags() error {
 	flag.StringVar(&secretKeyFlag, "k", configData.secretKey, "secret key for signing data")
 	flag.Int64Var(&rateLimitFlag, "l", configData.rateLimit, "amount of workers")
 	flag.StringVar(&cryptoKeyFlag, "crypto-key", configData.cryptoKey, "key for encrypting data")
+	flag.StringVar(&grpcAddressFlag, "g", configData.grpcAddress, "gRPC server address (host:port)")
 	flag.Parse()
 
 	if err := loadJSONConfig(configPath); err != nil {
@@ -159,6 +166,8 @@ func parseFlags() error {
 			configData.rateLimit = rateLimitFlag
 		case "crypto-key":
 			configData.cryptoKey = cryptoKeyFlag
+		case "g":
+			configData.grpcAddress = grpcAddressFlag
 		}
 	})
 
@@ -194,6 +203,9 @@ func parseFlags() error {
 	}
 	if v, ok := os.LookupEnv("CRYPTO_KEY"); ok {
 		configData.cryptoKey = v
+	}
+	if v, ok := os.LookupEnv("GRPC_ADDRESS"); ok {
+		configData.grpcAddress = v
 	}
 	return nil
 }

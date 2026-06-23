@@ -35,6 +35,12 @@ func run() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer stop()
+	if configData.grpcAddress != "" {
+		if err := a.RunGRPC(ctx, configData.grpcAddress); err != nil {
+			return fmt.Errorf("run gRPC agent: %w", err)
+		}
+		return nil
+	}
 	if err := a.Run(ctx, configData.address.String()); err != nil {
 		return fmt.Errorf("run agent: %w", err)
 	}

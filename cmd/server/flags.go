@@ -12,6 +12,7 @@ import (
 
 type JSONConfig struct {
 	Address         *string `json:"address"`
+	GRPCAddress     *string `json:"grpc_address"`
 	StoreInterval   *string `json:"store_interval"`
 	FileStoragePath *string `json:"store_file"`
 	Restore         *bool   `json:"restore"`
@@ -26,6 +27,7 @@ type JSONConfig struct {
 // Config contains server runtime settings parsed from flags and environment.
 type Config struct {
 	Address         Address
+	GRPCAddress     string `env:"GRPC_ADDRESS"`
 	FileWork        FileWork
 	DatabaseAddress DatabaseAddress
 	secretKey       string `env:"SECRET_KEY"`
@@ -89,6 +91,9 @@ func applyJSONConfig(cfg JSONConfig) error {
 			return fmt.Errorf("set address: %w", err)
 		}
 	}
+	if cfg.GRPCAddress != nil {
+		configData.GRPCAddress = *cfg.GRPCAddress
+	}
 	if cfg.StoreInterval != nil {
 		duration, err := time.ParseDuration(*cfg.StoreInterval)
 		if err != nil {
@@ -151,6 +156,7 @@ func parseFlags() error {
 	auditFileFlag := configData.AuditFile
 	cryptoKeyFlag := configData.cryptoKey
 	trustedSubnetFlag := configData.TrustedSubnet
+	grpcAddressFlag := configData.GRPCAddress
 
 	flag.StringVar(&jsonFilePath, "c", "", "path to JSON config")
 	flag.StringVar(&jsonFilePath, "config", "", "path to JSON config")
@@ -165,6 +171,7 @@ func parseFlags() error {
 	flag.StringVar(&auditFileFlag, "audit-file", configData.AuditFile, "path to audit log file")
 	flag.StringVar(&cryptoKeyFlag, "crypto-key", configData.cryptoKey, "key for encrypting data")
 	flag.StringVar(&trustedSubnetFlag, "t", configData.TrustedSubnet, "Trusted subnet")
+	flag.StringVar(&grpcAddressFlag, "g", configData.GRPCAddress, "gRPC listen address (host:port)")
 	flag.Parse()
 
 	if err := loadJSONConfig(jsonFilePath); err != nil {
@@ -193,6 +200,8 @@ func parseFlags() error {
 			configData.cryptoKey = cryptoKeyFlag
 		case "t":
 			configData.TrustedSubnet = trustedSubnetFlag
+		case "g":
+			configData.GRPCAddress = grpcAddressFlag
 		}
 	})
 
@@ -246,6 +255,9 @@ func parseFlags() error {
 
 	if v, ok := os.LookupEnv("TRUSTED_SUBNET"); ok {
 		configData.TrustedSubnet = v
+	}
+	if v, ok := os.LookupEnv("GRPC_ADDRESS"); ok {
+		configData.GRPCAddress = v
 	}
 	return nil
 }

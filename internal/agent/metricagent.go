@@ -22,11 +22,17 @@ import (
 	cpu "github.com/shirou/gopsutil/v4/cpu"
 	memory "github.com/shirou/gopsutil/v4/mem"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/Nakohartum/practicum-metrics/internal/cryptoutil"
 	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
+	pb "github.com/Nakohartum/practicum-metrics/internal/proto"
 )
+
+const realIPMetadataKey = "x-real-ip"
 
 // MetricsAgent periodically collects runtime metrics and reports them to a server.
 type MetricsAgent struct {
@@ -40,6 +46,7 @@ type MetricsAgent struct {
 	pollCount      int
 	rateLimit      int
 	publicKey      *rsa.PublicKey
+	agentIP        string
 }
 
 // NewAgentMetrics creates a MetricsAgent.
@@ -52,9 +59,9 @@ func NewAgentMetrics(pollInterval, reportInterval time.Duration, rateLimit int, 
 			return nil, fmt.Errorf("load public key: %w", err)
 		}
 	}
-	agentIp := getAgentIP();
-	client := resty.New().SetHeader("Content-Type", "application/json").SetHeader("X-Real-IP", agentIp)
-	if agentIP := getAgentIP(); agentIP != "" {
+	agentIP := getAgentIP()
+	client := resty.New().SetHeader("Content-Type", "application/json")
+	if agentIP != "" {
 		client.SetHeader("X-Real-IP", agentIP)
 	}
 
@@ -66,6 +73,7 @@ func NewAgentMetrics(pollInterval, reportInterval time.Duration, rateLimit int, 
 		pollCount:      0,
 		rateLimit:      rateLimit,
 		publicKey:      pubKey,
+		agentIP:        agentIP,
 	}
 	internalLogger.AttachLoggingToRequest(agent.client)
 	return &agent, nil
@@ -182,6 +190,12 @@ func (mA *MetricsAgent) collectLoop(ctx context.Context) {
 }
 
 func (mA *MetricsAgent) sendWorker(ctx context.Context, host string) error {
+	return mA.sendWorkerWith(ctx, func(ctx context.Context, snap snapshot) error {
+		return mA.sendSnapshot(ctx, snap, host)
+	})
+}
+
+func (mA *MetricsAgent) sendWorkerWith(ctx context.Context, send func(context.Context, snapshot) error) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -190,7 +204,7 @@ func (mA *MetricsAgent) sendWorker(ctx context.Context, host string) error {
 			if !ok {
 				return nil
 			}
-			if err := mA.sendSnapshot(ctx, snap, host); err != nil {
+			if err := send(ctx, snap); err != nil {
 				return err
 			}
 		}
@@ -320,6 +334,60 @@ func (mA *MetricsAgent) sendSnapshot(ctx context.Context, s snapshot, path strin
 
 // Run starts collection and reporting loops until the context is canceled.
 func (mA *MetricsAgent) Run(ctx context.Context, host string) error {
+	return mA.runWithSender(ctx, func(ctx context.Context, snap snapshot) error {
+		return mA.sendSnapshot(ctx, snap, host)
+	})
+}
+
+// RunGRPC starts collection and sends metric batches to a gRPC server.
+func (mA *MetricsAgent) RunGRPC(ctx context.Context, address string) error {
+	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("create gRPC client: %w", err)
+	}
+	defer conn.Close()
+
+	client := pb.NewMetricsClient(conn)
+	return mA.runWithSender(ctx, func(ctx context.Context, snap snapshot) error {
+		return mA.sendGRPCSnapshot(ctx, client, snap)
+	})
+}
+
+func (mA *MetricsAgent) sendGRPCSnapshot(ctx context.Context, client pb.MetricsClient, snap snapshot) error {
+	request := &pb.UpdateMetricsRequest{
+		Metrics: make([]*pb.Metric, 0, len(snap.Metrics)),
+	}
+	for _, metric := range snap.Metrics {
+		protoMetric := &pb.Metric{Id: metric.ID}
+		switch metric.MType {
+		case models.Counter:
+			if metric.Delta == nil {
+				return fmt.Errorf("metric %q: counter delta is required", metric.ID)
+			}
+			protoMetric.Type = pb.Metric_COUNTER
+			protoMetric.Delta = *metric.Delta
+		case models.Gauge:
+			if metric.Value == nil {
+				return fmt.Errorf("metric %q: gauge value is required", metric.ID)
+			}
+			protoMetric.Type = pb.Metric_GAUGE
+			protoMetric.Value = *metric.Value
+		default:
+			return fmt.Errorf("metric %q: unsupported type %q", metric.ID, metric.MType)
+		}
+		request.Metrics = append(request.Metrics, protoMetric)
+	}
+
+	ctx = metadata.AppendToOutgoingContext(ctx, realIPMetadataKey, mA.agentIP)
+	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := client.UpdateMetrics(callCtx, request); err != nil {
+		return fmt.Errorf("update metrics over gRPC: %w", err)
+	}
+	return nil
+}
+
+func (mA *MetricsAgent) runWithSender(ctx context.Context, send func(context.Context, snapshot) error) error {
 	workerCount := mA.rateLimit
 	if workerCount < 1 {
 		workerCount = 1
@@ -338,7 +406,7 @@ func (mA *MetricsAgent) Run(ctx context.Context, host string) error {
 
 	for i := 0; i < workerCount; i++ {
 		group.Go(func() error {
-			return mA.sendWorker(groupCtx, host)
+			return mA.sendWorkerWith(groupCtx, send)
 		})
 	}
 
@@ -351,7 +419,7 @@ func (mA *MetricsAgent) Run(ctx context.Context, host string) error {
 	if len(snap.Metrics) != 0 {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := mA.sendSnapshot(shutdownCtx, snap, host); err != nil {
+		if err := send(shutdownCtx, snap); err != nil {
 			return fmt.Errorf("send final snapshot: %w", err)
 		}
 	}
