@@ -234,35 +234,33 @@ func DecryptMiddleware(privateKeyPath string) (func(http.Handler) http.Handler, 
 	}, nil
 }
 
+func TrustedSubnetMiddleware(trustedSubnet string) (func(http.Handler) http.Handler, error) {
+	if trustedSubnet == "" {
+		return func(h http.Handler) http.Handler {
+			return h
+		}, nil
+	}
 
-func TrustedSubnetMiddleware(trustedSubnet string) (func(http.Handler) http.Handler) {
+	_, ipNet, err := net.ParseCIDR(trustedSubnet)
+	if err != nil {
+		return nil, err
+	}
+
 	return func(h http.Handler) http.Handler {
-		
-		_, ipNet, err := net.ParseCIDR(trustedSubnet)
-		if trustedSubnet != "" && err != nil {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				writeJSONError(w, "invalid trusted subnet", http.StatusInternalServerError)
-			})
-		}
-
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodPost {
 				h.ServeHTTP(w, r)
 				return
 			}
-			if trustedSubnet == "" {
-				h.ServeHTTP(w,r)
-				return 
-			}
 
 			ip := net.ParseIP(r.Header.Get("X-Real-IP"))
 
-			if ip == nil || !ipNet.Contains(ip){
+			if ip == nil || !ipNet.Contains(ip) {
 				writeJSONError(w, "forbidden", http.StatusForbidden)
-				return 
+				return
 			}
 
 			h.ServeHTTP(w, r)
 		})
-	}
+	}, nil
 }

@@ -23,10 +23,10 @@ import (
 	memory "github.com/shirou/gopsutil/v4/mem"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/Nakohartum/practicum-metrics/internal/cryptoutil"
+	"github.com/Nakohartum/practicum-metrics/internal/grpctls"
 	internalLogger "github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
 	pb "github.com/Nakohartum/practicum-metrics/internal/proto"
@@ -189,12 +189,6 @@ func (mA *MetricsAgent) collectLoop(ctx context.Context) {
 	}
 }
 
-func (mA *MetricsAgent) sendWorker(ctx context.Context, host string) error {
-	return mA.sendWorkerWith(ctx, func(ctx context.Context, snap snapshot) error {
-		return mA.sendSnapshot(ctx, snap, host)
-	})
-}
-
 func (mA *MetricsAgent) sendWorkerWith(ctx context.Context, send func(context.Context, snapshot) error) error {
 	for {
 		select {
@@ -341,7 +335,11 @@ func (mA *MetricsAgent) Run(ctx context.Context, host string) error {
 
 // RunGRPC starts collection and sends metric batches to a gRPC server.
 func (mA *MetricsAgent) RunGRPC(ctx context.Context, address string) error {
-	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	creds, err := grpctls.ClientCredentials()
+	if err != nil {
+		return fmt.Errorf("initialize gRPC TLS credentials: %w", err)
+	}
+	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return fmt.Errorf("create gRPC client: %w", err)
 	}
@@ -354,29 +352,28 @@ func (mA *MetricsAgent) RunGRPC(ctx context.Context, address string) error {
 }
 
 func (mA *MetricsAgent) sendGRPCSnapshot(ctx context.Context, client pb.MetricsClient, snap snapshot) error {
-	request := &pb.UpdateMetricsRequest{
-		Metrics: make([]*pb.Metric, 0, len(snap.Metrics)),
-	}
+	protoMetrics := make([]*pb.Metric, 0, len(snap.Metrics))
 	for _, metric := range snap.Metrics {
-		protoMetric := &pb.Metric{Id: metric.ID}
+		protoMetric := (&pb.Metric_builder{Id: metric.ID}).Build()
 		switch metric.MType {
 		case models.Counter:
 			if metric.Delta == nil {
 				return fmt.Errorf("metric %q: counter delta is required", metric.ID)
 			}
-			protoMetric.Type = pb.Metric_COUNTER
-			protoMetric.Delta = *metric.Delta
+			protoMetric.SetType(pb.Metric_COUNTER)
+			protoMetric.SetDelta(*metric.Delta)
 		case models.Gauge:
 			if metric.Value == nil {
 				return fmt.Errorf("metric %q: gauge value is required", metric.ID)
 			}
-			protoMetric.Type = pb.Metric_GAUGE
-			protoMetric.Value = *metric.Value
+			protoMetric.SetType(pb.Metric_GAUGE)
+			protoMetric.SetValue(*metric.Value)
 		default:
 			return fmt.Errorf("metric %q: unsupported type %q", metric.ID, metric.MType)
 		}
-		request.Metrics = append(request.Metrics, protoMetric)
+		protoMetrics = append(protoMetrics, protoMetric)
 	}
+	request := (&pb.UpdateMetricsRequest_builder{Metrics: protoMetrics}).Build()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, realIPMetadataKey, mA.agentIP)
 	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)

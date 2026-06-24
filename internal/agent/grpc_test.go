@@ -48,8 +48,8 @@ func TestMetricsAgentSendGRPCSnapshot(t *testing.T) {
 				newCounterMetric("hits", 3),
 			},
 			wantMetrics: []*pb.Metric{
-				{Id: "load", Type: pb.Metric_GAUGE, Value: 1.5},
-				{Id: "hits", Type: pb.Metric_COUNTER, Delta: 3},
+				protoGaugeMetric("load", 1.5),
+				protoCounterMetric("hits", 3),
 			},
 		},
 		{
@@ -59,8 +59,8 @@ func TestMetricsAgentSendGRPCSnapshot(t *testing.T) {
 				newCounterMetric("hits", 0),
 			},
 			wantMetrics: []*pb.Metric{
-				{Id: "load", Type: pb.Metric_GAUGE},
-				{Id: "hits", Type: pb.Metric_COUNTER},
+				protoGaugeMetric("load", 0),
+				protoCounterMetric("hits", 0),
 			},
 		},
 		{
@@ -88,7 +88,7 @@ func TestMetricsAgentSendGRPCSnapshot(t *testing.T) {
 			metrics:     []models.Metrics{newCounterMetric("hits", 1)},
 			clientErr:   errors.New("connection failed"),
 			wantErr:     true,
-			wantMetrics: []*pb.Metric{{Id: "hits", Type: pb.Metric_COUNTER, Delta: 1}},
+			wantMetrics: []*pb.Metric{protoCounterMetric("hits", 1)},
 		},
 	}
 
@@ -116,4 +116,20 @@ func TestMetricsAgentSendGRPCSnapshot(t *testing.T) {
 			assert.Equal(t, []string{"192.168.1.10"}, client.md.Get(realIPMetadataKey))
 		})
 	}
+}
+
+func protoGaugeMetric(id string, value float64) *pb.Metric {
+	return (&pb.Metric_builder{
+		Id:    id,
+		Type:  pb.Metric_GAUGE,
+		Value: value,
+	}).Build()
+}
+
+func protoCounterMetric(id string, delta int64) *pb.Metric {
+	return (&pb.Metric_builder{
+		Id:    id,
+		Type:  pb.Metric_COUNTER,
+		Delta: delta,
+	}).Build()
 }

@@ -20,6 +20,7 @@ import (
 	fConfig "github.com/Nakohartum/practicum-metrics/internal/config/filestorage"
 	mConfig "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
 	"github.com/Nakohartum/practicum-metrics/internal/grpcapi"
+	"github.com/Nakohartum/practicum-metrics/internal/grpctls"
 	"github.com/Nakohartum/practicum-metrics/internal/handler"
 	"github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
@@ -131,7 +132,12 @@ func setupGRPCServer(metricService service.Service, auditors ...*audit.Auditor) 
 		return nil, nil, fmt.Errorf("listen on gRPC address %q: %w", configData.GRPCAddress, err)
 	}
 
-	server := grpc.NewServer(grpc.UnaryInterceptor(interceptor))
+	creds, err := grpctls.ServerCredentials()
+	if err != nil {
+		return nil, nil, fmt.Errorf("initialize gRPC TLS credentials: %w", err)
+	}
+
+	server := grpc.NewServer(grpc.Creds(creds), grpc.UnaryInterceptor(interceptor))
 	pb.RegisterMetricsServer(server, grpcapi.NewMetricsServer(metricService, auditors...))
 	return server, listener, nil
 }
@@ -194,7 +200,11 @@ func setupRouter(service service.Service) (*chi.Mux, error) {
 		router.Use(decryptMiddleware)
 	}
 	if configData.TrustedSubnet != "" {
-		router.Use(handler.TrustedSubnetMiddleware(configData.TrustedSubnet))
+		trustedSubnetMiddleware, err := handler.TrustedSubnetMiddleware(configData.TrustedSubnet)
+		if err != nil {
+			return nil, fmt.Errorf("initialize trusted subnet middleware: %w", err)
+		}
+		router.Use(trustedSubnetMiddleware)
 	}
 	router.Use(handler.GetZippedDataMiddleware)
 	router.Use(handler.GiveZippedDataMiddleware)

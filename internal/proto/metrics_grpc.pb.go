@@ -25,11 +25,7 @@ const (
 // MetricsClient is the client API for Metrics service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// MetricsService определяет сервис для работы с метриками.
 type MetricsClient interface {
-	// UpdateMetrics обновляет метрики на сервере.
-	// Этот метод подходит для отправки как единичных метрик, так и батчей.
 	UpdateMetrics(ctx context.Context, in *UpdateMetricsRequest, opts ...grpc.CallOption) (*UpdateMetricsResponse, error)
 }
 
@@ -54,11 +50,7 @@ func (c *metricsClient) UpdateMetrics(ctx context.Context, in *UpdateMetricsRequ
 // MetricsServer is the server API for Metrics service.
 // All implementations must embed UnimplementedMetricsServer
 // for forward compatibility.
-//
-// MetricsService определяет сервис для работы с метриками.
 type MetricsServer interface {
-	// UpdateMetrics обновляет метрики на сервере.
-	// Этот метод подходит для отправки как единичных метрик, так и батчей.
 	UpdateMetrics(context.Context, *UpdateMetricsRequest) (*UpdateMetricsResponse, error)
 	mustEmbedUnimplementedMetricsServer()
 }

@@ -30,10 +30,10 @@ func TestMetricsServerUpdateMetrics(t *testing.T) {
 	}{
 		{
 			name: "stores gauge and counter batch",
-			request: &pb.UpdateMetricsRequest{Metrics: []*pb.Metric{
-				{Id: "load", Type: pb.Metric_GAUGE, Value: 2.5},
-				{Id: "hits", Type: pb.Metric_COUNTER, Delta: 4},
-			}},
+			request: protoUpdateRequest(
+				protoGaugeMetric("load", 2.5),
+				protoCounterMetric("hits", 4),
+			),
 			wantMetrics: []models.Metrics{
 				gaugeMetric("load", 2.5),
 				counterMetric("hits", 4),
@@ -43,10 +43,10 @@ func TestMetricsServerUpdateMetrics(t *testing.T) {
 		},
 		{
 			name: "stores zero values",
-			request: &pb.UpdateMetricsRequest{Metrics: []*pb.Metric{
-				{Id: "load", Type: pb.Metric_GAUGE},
-				{Id: "hits", Type: pb.Metric_COUNTER},
-			}},
+			request: protoUpdateRequest(
+				protoGaugeMetric("load", 0),
+				protoCounterMetric("hits", 0),
+			),
 			wantMetrics: []models.Metrics{
 				gaugeMetric("load", 0),
 				counterMetric("hits", 0),
@@ -56,29 +56,29 @@ func TestMetricsServerUpdateMetrics(t *testing.T) {
 		},
 		{
 			name:        "stores empty batch",
-			request:     &pb.UpdateMetricsRequest{},
+			request:     protoUpdateRequest(),
 			wantMetrics: []models.Metrics{},
 			wantCode:    codes.OK,
 			callService: true,
 		},
 		{
 			name:     "rejects metric without ID",
-			request:  &pb.UpdateMetricsRequest{Metrics: []*pb.Metric{{Type: pb.Metric_COUNTER, Delta: 1}}},
+			request:  protoUpdateRequest(protoCounterMetric("", 1)),
 			wantCode: codes.InvalidArgument,
 		},
 		{
 			name:     "rejects nil metric",
-			request:  &pb.UpdateMetricsRequest{Metrics: []*pb.Metric{nil}},
+			request:  protoUpdateRequest(nil),
 			wantCode: codes.InvalidArgument,
 		},
 		{
 			name:     "rejects unknown metric type",
-			request:  &pb.UpdateMetricsRequest{Metrics: []*pb.Metric{{Id: "metric", Type: pb.Metric_MType(100)}}},
+			request:  protoUpdateRequest(protoMetric("metric", pb.Metric_MType(100), 0, 0)),
 			wantCode: codes.InvalidArgument,
 		},
 		{
 			name:        "maps validation service error",
-			request:     &pb.UpdateMetricsRequest{Metrics: []*pb.Metric{{Id: "hits", Type: pb.Metric_COUNTER, Delta: 1}}},
+			request:     protoUpdateRequest(protoCounterMetric("hits", 1)),
 			serviceErr:  service.ErrMetricTypeNotSupported,
 			wantMetrics: []models.Metrics{counterMetric("hits", 1)},
 			wantCode:    codes.InvalidArgument,
@@ -86,7 +86,7 @@ func TestMetricsServerUpdateMetrics(t *testing.T) {
 		},
 		{
 			name:        "maps storage error to internal",
-			request:     &pb.UpdateMetricsRequest{Metrics: []*pb.Metric{{Id: "hits", Type: pb.Metric_COUNTER, Delta: 1}}},
+			request:     protoUpdateRequest(protoCounterMetric("hits", 1)),
 			serviceErr:  serviceFailure,
 			wantMetrics: []models.Metrics{counterMetric("hits", 1)},
 			wantCode:    codes.Internal,
@@ -209,4 +209,25 @@ func gaugeMetric(id string, value float64) models.Metrics {
 
 func counterMetric(id string, delta int64) models.Metrics {
 	return models.Metrics{ID: id, MType: models.Counter, Delta: &delta}
+}
+
+func protoUpdateRequest(metrics ...*pb.Metric) *pb.UpdateMetricsRequest {
+	return (&pb.UpdateMetricsRequest_builder{Metrics: metrics}).Build()
+}
+
+func protoMetric(id string, metricType pb.Metric_MType, delta int64, value float64) *pb.Metric {
+	return (&pb.Metric_builder{
+		Id:    id,
+		Type:  metricType,
+		Delta: delta,
+		Value: value,
+	}).Build()
+}
+
+func protoGaugeMetric(id string, value float64) *pb.Metric {
+	return protoMetric(id, pb.Metric_GAUGE, 0, value)
+}
+
+func protoCounterMetric(id string, delta int64) *pb.Metric {
+	return protoMetric(id, pb.Metric_COUNTER, delta, 0)
 }
