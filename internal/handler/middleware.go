@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -228,6 +229,37 @@ func DecryptMiddleware(privateKeyPath string) (func(http.Handler) http.Handler, 
 			}
 
 			r.Body = io.NopCloser(bytes.NewReader(decryptedBody))
+			h.ServeHTTP(w, r)
+		})
+	}, nil
+}
+
+func TrustedSubnetMiddleware(trustedSubnet string) (func(http.Handler) http.Handler, error) {
+	if trustedSubnet == "" {
+		return func(h http.Handler) http.Handler {
+			return h
+		}, nil
+	}
+
+	_, ipNet, err := net.ParseCIDR(trustedSubnet)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				h.ServeHTTP(w, r)
+				return
+			}
+
+			ip := net.ParseIP(r.Header.Get("X-Real-IP"))
+
+			if ip == nil || !ipNet.Contains(ip) {
+				writeJSONError(w, "forbidden", http.StatusForbidden)
+				return
+			}
+
 			h.ServeHTTP(w, r)
 		})
 	}, nil

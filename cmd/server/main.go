@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,13 +14,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"google.golang.org/grpc"
 
 	"github.com/Nakohartum/practicum-metrics/internal/audit"
 	fConfig "github.com/Nakohartum/practicum-metrics/internal/config/filestorage"
 	mConfig "github.com/Nakohartum/practicum-metrics/internal/config/memstorage"
+	"github.com/Nakohartum/practicum-metrics/internal/grpcapi"
+	"github.com/Nakohartum/practicum-metrics/internal/grpctls"
 	"github.com/Nakohartum/practicum-metrics/internal/handler"
 	"github.com/Nakohartum/practicum-metrics/internal/logger"
 	models "github.com/Nakohartum/practicum-metrics/internal/model"
+	pb "github.com/Nakohartum/practicum-metrics/internal/proto"
 	"github.com/Nakohartum/practicum-metrics/internal/repository"
 	"github.com/Nakohartum/practicum-metrics/internal/service"
 )
@@ -65,13 +70,30 @@ func run() error {
 		return err
 	}
 
-	errCh := make(chan error, 1)
+	var grpcServer *grpc.Server
+	var grpcListener net.Listener
+	if configData.GRPCAddress != "" {
+		grpcServer, grpcListener, err = setupGRPCServer(service, auditor)
+		if err != nil {
+			return err
+		}
+	}
+
+	errCh := make(chan error, 2)
 	go func() {
-		slog.Info("server started", "addr", configData.Address.String())
+		slog.Info("HTTP server started", "addr", configData.Address.String())
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}
 	}()
+	if grpcServer != nil {
+		go func() {
+			slog.Info("gRPC server started", "addr", configData.GRPCAddress)
+			if err := grpcServer.Serve(grpcListener); err != nil {
+				errCh <- err
+			}
+		}()
+	}
 
 	select {
 	case <-appCtx.Done():
@@ -85,6 +107,9 @@ func run() error {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		return err
 	}
+	if grpcServer != nil {
+		grpcServer.GracefulStop()
+	}
 
 	saveCtx, cancelSave := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelSave()
@@ -95,6 +120,26 @@ func run() error {
 
 	slog.Info("server shut down")
 	return nil
+}
+
+func setupGRPCServer(metricService service.Service, auditors ...*audit.Auditor) (*grpc.Server, net.Listener, error) {
+	interceptor, err := grpcapi.TrustedSubnetUnaryInterceptor(configData.TrustedSubnet)
+	if err != nil {
+		return nil, nil, fmt.Errorf("initialize gRPC trusted subnet interceptor: %w", err)
+	}
+	listener, err := net.Listen("tcp", configData.GRPCAddress)
+	if err != nil {
+		return nil, nil, fmt.Errorf("listen on gRPC address %q: %w", configData.GRPCAddress, err)
+	}
+
+	creds, err := grpctls.ServerCredentials()
+	if err != nil {
+		return nil, nil, fmt.Errorf("initialize gRPC TLS credentials: %w", err)
+	}
+
+	server := grpc.NewServer(grpc.Creds(creds), grpc.UnaryInterceptor(interceptor))
+	pb.RegisterMetricsServer(server, grpcapi.NewMetricsServer(metricService, auditors...))
+	return server, listener, nil
 }
 
 func setupMemRepo() *repository.MemRepo {
@@ -153,6 +198,13 @@ func setupRouter(service service.Service) (*chi.Mux, error) {
 			return nil, fmt.Errorf("initialize decrypt middleware: %w", err)
 		}
 		router.Use(decryptMiddleware)
+	}
+	if configData.TrustedSubnet != "" {
+		trustedSubnetMiddleware, err := handler.TrustedSubnetMiddleware(configData.TrustedSubnet)
+		if err != nil {
+			return nil, fmt.Errorf("initialize trusted subnet middleware: %w", err)
+		}
+		router.Use(trustedSubnetMiddleware)
 	}
 	router.Use(handler.GetZippedDataMiddleware)
 	router.Use(handler.GiveZippedDataMiddleware)

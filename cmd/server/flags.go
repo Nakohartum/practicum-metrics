@@ -12,6 +12,7 @@ import (
 
 type JSONConfig struct {
 	Address         *string `json:"address"`
+	GRPCAddress     *string `json:"grpc_address"`
 	StoreInterval   *string `json:"store_interval"`
 	FileStoragePath *string `json:"store_file"`
 	Restore         *bool   `json:"restore"`
@@ -20,17 +21,20 @@ type JSONConfig struct {
 	AuditFile       *string `json:"audit_file"`
 	AuditURL        *string `json:"audit_url"`
 	CryptoKey       *string `json:"crypto_key"`
+	TrustedSubnet   *string `json:"trusted_subnet"`
 }
 
 // Config contains server runtime settings parsed from flags and environment.
 type Config struct {
 	Address         Address
+	GRPCAddress     string `env:"GRPC_ADDRESS"`
 	FileWork        FileWork
 	DatabaseAddress DatabaseAddress
 	secretKey       string `env:"SECRET_KEY"`
 	AuditFile       string `env:"AUDIT_FILE"`
 	AuditUrl        string `env:"AUDIT_URL"`
 	cryptoKey       string `env:"CRYPTO_KEY"`
+	TrustedSubnet   string `env:"TRUSTED_SUBNET"`
 }
 
 // DatabaseAddress stores the database connection string.
@@ -87,6 +91,9 @@ func applyJSONConfig(cfg JSONConfig) error {
 			return fmt.Errorf("set address: %w", err)
 		}
 	}
+	if cfg.GRPCAddress != nil {
+		configData.GRPCAddress = *cfg.GRPCAddress
+	}
 	if cfg.StoreInterval != nil {
 		duration, err := time.ParseDuration(*cfg.StoreInterval)
 		if err != nil {
@@ -114,6 +121,9 @@ func applyJSONConfig(cfg JSONConfig) error {
 	}
 	if cfg.CryptoKey != nil {
 		configData.cryptoKey = *cfg.CryptoKey
+	}
+	if cfg.TrustedSubnet != nil {
+		configData.TrustedSubnet = *cfg.TrustedSubnet
 	}
 	return nil
 }
@@ -145,6 +155,8 @@ func parseFlags() error {
 	auditURLFlag := configData.AuditUrl
 	auditFileFlag := configData.AuditFile
 	cryptoKeyFlag := configData.cryptoKey
+	trustedSubnetFlag := configData.TrustedSubnet
+	grpcAddressFlag := configData.GRPCAddress
 
 	flag.StringVar(&jsonFilePath, "c", "", "path to JSON config")
 	flag.StringVar(&jsonFilePath, "config", "", "path to JSON config")
@@ -158,6 +170,8 @@ func parseFlags() error {
 	flag.StringVar(&auditURLFlag, "audit-url", configData.AuditUrl, "path to audit log url")
 	flag.StringVar(&auditFileFlag, "audit-file", configData.AuditFile, "path to audit log file")
 	flag.StringVar(&cryptoKeyFlag, "crypto-key", configData.cryptoKey, "key for encrypting data")
+	flag.StringVar(&trustedSubnetFlag, "t", configData.TrustedSubnet, "Trusted subnet")
+	flag.StringVar(&grpcAddressFlag, "g", configData.GRPCAddress, "gRPC listen address (host:port)")
 	flag.Parse()
 
 	if err := loadJSONConfig(jsonFilePath); err != nil {
@@ -184,6 +198,10 @@ func parseFlags() error {
 			configData.AuditFile = auditFileFlag
 		case "crypto-key":
 			configData.cryptoKey = cryptoKeyFlag
+		case "t":
+			configData.TrustedSubnet = trustedSubnetFlag
+		case "g":
+			configData.GRPCAddress = grpcAddressFlag
 		}
 	})
 
@@ -233,6 +251,13 @@ func parseFlags() error {
 
 	if v, ok := os.LookupEnv("CRYPTO_KEY"); ok {
 		configData.cryptoKey = v
+	}
+
+	if v, ok := os.LookupEnv("TRUSTED_SUBNET"); ok {
+		configData.TrustedSubnet = v
+	}
+	if v, ok := os.LookupEnv("GRPC_ADDRESS"); ok {
+		configData.GRPCAddress = v
 	}
 	return nil
 }
